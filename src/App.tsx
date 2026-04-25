@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { FireInput, calcFire } from './utils/fireCalc';
+import { useFireSettings } from './hooks/useFireSettings';
 import FireBanner from './components/FireBanner';
 import InputPanel from './components/InputPanel';
 import FireChart from './components/FireChart';
 import HensachiCard from './components/HensachiCard';
 import PensionCard from './components/PensionCard';
+import AuthButton from './components/AuthButton';
 
 const DEFAULT_INPUT: FireInput = {
   currentAge: 30,
@@ -30,6 +32,38 @@ const DEFAULT_INPUT: FireInput = {
 export default function App() {
   const [input, setInput] = useState<FireInput>(DEFAULT_INPUT);
   const [isSingle, setIsSingle] = useState(true);
+  const isFirstLogin = useRef(true);
+
+  const { user, authLoading, saveStatus, login, logout, loadSettings, scheduleSave } =
+    useFireSettings();
+
+  // ログイン時にFirestoreから設定を読み込む
+  useEffect(() => {
+    if (!user) {
+      isFirstLogin.current = true;
+      return;
+    }
+    if (!isFirstLogin.current) return;
+    isFirstLogin.current = false;
+
+    loadSettings(user.uid).then((saved) => {
+      if (saved) {
+        setInput(saved.input);
+        setIsSingle(saved.isSingle);
+      }
+    });
+  }, [user, loadSettings]);
+
+  // 設定変更時に自動保存（ログイン中のみ）
+  const isInitialRender = useRef(true);
+  useEffect(() => {
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      return;
+    }
+    if (!user) return;
+    scheduleSave(user.uid, { input, isSingle });
+  }, [input, isSingle, user, scheduleSave]);
 
   const result = useMemo(() => calcFire(input), [input]);
 
@@ -46,6 +80,15 @@ export default function App() {
       <header className="app-header">
         <h1 className="app-title">🔥 FIREシミュレーター</h1>
         <p className="app-subtitle">Financial Independence, Retire Early</p>
+        <div className="auth-area">
+          <AuthButton
+            user={user}
+            authLoading={authLoading}
+            saveStatus={saveStatus}
+            onLogin={login}
+            onLogout={logout}
+          />
+        </div>
       </header>
 
       <FireBanner result={result} currentAge={input.currentAge} />
