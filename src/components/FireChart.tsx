@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
   Label,
 } from 'recharts';
-import { FireResult, formatAsset } from '../utils/fireCalc';
+import { FireResult, formatAsset, DC_AVAILABLE_AGE } from '../utils/fireCalc';
 
 interface Props {
   result: FireResult;
@@ -152,6 +152,23 @@ export default function FireChart({ result }: Props) {
                 fill="#ff8800"
                 fontSize={13}
                 fontWeight="bold"
+              />
+            </ReferenceLine>
+          )}
+
+          {/* DC解禁ライン（FIRE後かつ60歳以降の場合のみ表示） */}
+          {fireAge !== null && DC_AVAILABLE_AGE > fireAge && DC_AVAILABLE_AGE <= lastAge && (
+            <ReferenceLine
+              x={DC_AVAILABLE_AGE}
+              stroke="#ffaa00"
+              strokeDasharray="4 3"
+              strokeWidth={1.5}
+            >
+              <Label
+                value="🔓 DC解禁"
+                position="top"
+                fill="#ffaa00"
+                fontSize={11}
               />
             </ReferenceLine>
           )}

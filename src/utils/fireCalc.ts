@@ -58,6 +58,7 @@ export interface FireResult {
 //   繰り上げ: -0.4%/月（60〜64歳）最大 -24%  ※1962年4月2日以降生まれ
 //   繰り下げ: +0.7%/月（66〜75歳）最大 +84%
 //   https://www.mhlw.go.jp/stf/nenkin_shikumi_011.html
+export const DC_AVAILABLE_AGE = 60;   // DC引き出し可能年齢
 export const PENSION_MIN_AGE = 60;
 export const PENSION_MAX_AGE = 75;
 export const PENSION_BASE_AGE = 65;
@@ -215,20 +216,24 @@ export function calcFire(input: FireInput): FireResult {
         ? postPensionMonthlyInvestment
         : postFireMonthlyInvestment;
 
+      // DC は60歳から引き出し可能
+      const dcUnlocked = ageAtEnd >= 60;
+
       for (let m = 0; m < 12; m++) {
         acc += monthlyContrib;
         inv  *= 1 + monthlyRate;
         dc   *= 1 + monthlyRate;
         acc  *= 1 + monthlyRate;
 
-        const totalNow = inv + cash + dc + acc;
-        if (totalNow > 0 && monthlyNetWithdrawal > 0) {
-          const withdrawal = Math.min(totalNow, monthlyNetWithdrawal);
-          const ratio = withdrawal / totalNow;
+        // 引き出し可能な資産（DCは60歳未満は除外）
+        const liquidNow = inv + cash + acc + (dcUnlocked ? dc : 0);
+        if (liquidNow > 0 && monthlyNetWithdrawal > 0) {
+          const withdrawal = Math.min(liquidNow, monthlyNetWithdrawal);
+          const ratio = withdrawal / liquidNow;
           inv  -= inv  * ratio;
           cash -= cash * ratio;
-          dc   -= dc   * ratio;
           acc  -= acc  * ratio;
+          if (dcUnlocked) dc -= dc * ratio;
           if (inv  < 0) inv  = 0;
           if (cash < 0) cash = 0;
           if (dc   < 0) dc   = 0;
