@@ -121,7 +121,7 @@ export function calcFire(input: FireInput): FireResult {
     dcMonthlyContribution,
     annualRate,
     steps,
-    annualExpenses,
+    withdrawalRate,
     targetAsset,
     postFireMonthlyInvestment,
     postPensionMonthlyInvestment,
@@ -209,8 +209,7 @@ export function calcFire(input: FireInput): FireResult {
       // 取り崩しフェーズ
       const ageAtEnd = yr + 1;
       const pensionActive = ageAtEnd >= pension.pensionStartAge;
-      const monthlyPension = pensionActive ? pension.monthlyPension : 0;
-      const monthlyNetWithdrawal = Math.max(0, annualExpenses / 12 - monthlyPension);
+      const monthlyPensionIncome = pensionActive ? pension.monthlyPension : 0;
       // 年金受給前後で積立額を切り替え
       const monthlyContrib = pensionActive
         ? postPensionMonthlyInvestment
@@ -227,8 +226,14 @@ export function calcFire(input: FireInput): FireResult {
 
         // 引き出し可能な資産（DCは60歳未満は除外）
         const liquidNow = inv + cash + acc + (dcUnlocked ? dc : 0);
-        if (liquidNow > 0 && monthlyNetWithdrawal > 0) {
-          const withdrawal = Math.min(liquidNow, monthlyNetWithdrawal);
+
+        // 取り崩し額 = 流動資産 × 年間取り崩し率 / 12
+        // 年金収入で賄える分は資産から引かなくてよい
+        const monthlyTarget = liquidNow * (withdrawalRate / 100) / 12;
+        const monthlyFromAssets = Math.max(0, monthlyTarget - monthlyPensionIncome);
+
+        if (liquidNow > 0 && monthlyFromAssets > 0) {
+          const withdrawal = Math.min(liquidNow, monthlyFromAssets);
           const ratio = withdrawal / liquidNow;
           inv  -= inv  * ratio;
           cash -= cash * ratio;

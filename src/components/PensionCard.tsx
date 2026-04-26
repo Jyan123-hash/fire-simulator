@@ -3,13 +3,16 @@ import { PensionInfo, PENSION_BASE_AGE } from '../utils/fireCalc';
 interface Props {
   pension: PensionInfo;
   fireAge: number | null;
+  fireAsset: number | null;
   startWorkAge: number;
-  annualExpenses: number;
+  withdrawalRate: number;
 }
 
-export default function PensionCard({ pension, fireAge, startWorkAge, annualExpenses }: Props) {
+export default function PensionCard({ pension, fireAge, fireAsset, startWorkAge, withdrawalRate }: Props) {
   const workYears = fireAge !== null ? Math.max(0, Math.min(fireAge, 65) - startWorkAge) : 0;
-  const netWithdrawal = Math.max(0, annualExpenses - pension.totalAnnualPension);
+  // FIRE時の資産 × 取り崩し率が年間生活費の基準
+  const annualFromAssets = fireAsset !== null ? fireAsset * (withdrawalRate / 100) : 0;
+  const netWithdrawal = Math.max(0, annualFromAssets - pension.totalAnnualPension);
 
   const adjPct = ((pension.adjustmentRate - 1) * 100);
   const isEarly    = pension.pensionStartAge < PENSION_BASE_AGE;
@@ -83,12 +86,13 @@ export default function PensionCard({ pension, fireAge, startWorkAge, annualExpe
 
       <div className="pension-note">
         <span className="pension-note__label">
-          {pension.pensionStartAge}歳以降の実質取り崩し額
+          FIRE時 {withdrawalRate}%取り崩し（年{annualFromAssets.toFixed(0)}万）のうち<br />
+          {pension.pensionStartAge}歳以降に資産から出す額
         </span>
         <span className="pension-note__value">
           {netWithdrawal > 0
             ? `${netWithdrawal.toFixed(0)}万円/年（月 ${(netWithdrawal / 12).toFixed(1)}万円）`
-            : '年金だけで生活費をカバー ✨'}
+            : '年金で全額カバー ✨'}
         </span>
       </div>
 

@@ -115,8 +115,9 @@ export default function App() {
           <PensionCard
             pension={result.pension}
             fireAge={result.fireAge}
+            fireAsset={result.fireAsset}
             startWorkAge={input.startWorkAge}
-            annualExpenses={input.annualExpenses}
+            withdrawalRate={input.withdrawalRate}
           />
         </div>
       </main>
