@@ -112,32 +112,37 @@ export function calcHensachi(
   const total = freqs.reduce((s, v) => s + v, 0);
   const normalized = freqs.map((v) => v / total);
 
-  // Build cumulative distribution
-  // bracket i covers (BRACKETS[i-1], BRACKETS[i]]
-  // BRACKETS[0]=0 means the first bucket is "0万円以下" (金融資産なし)
+  // BRACKETS[i] はバケツiの上限。バケツiの範囲は (BRACKETS[i-1], BRACKETS[i]]
+  // バケツ0: 金融資産ゼロ（0万円ちょうど）
+  // バケツ1: (0, 100], バケツ2: (100, 200], ...
   let cumulative = 0;
-  let percentile = 0;
 
   for (let i = 0; i < normalized.length; i++) {
-    const lower = i === 0 ? 0 : BRACKETS[i - 1];
-    const upper = BRACKETS[i] === Infinity ? 5000 : BRACKETS[i];
+    const lower = i === 0 ? 0 : BRACKETS[i - 1]; // バケツ下限
+    const upper = BRACKETS[i];                     // バケツ上限（Infinity含む）
     const freq = normalized[i];
 
+    // i=0 は「資産ゼロ」の点質量: savingsMan > 0 なら全員を追い抜く
+    if (i === 0) {
+      if (savingsMan > 0) cumulative += freq;
+      continue;
+    }
+
+    // savingsMan がこのバケツ未満 → ここで補間して終了
     if (savingsMan <= lower) break;
 
-    if (savingsMan >= upper) {
+    if (upper === Infinity || savingsMan >= upper) {
+      // バケツ全体を通過
       cumulative += freq;
     } else {
-      // Linear interpolation within bucket
-      const frac = (savingsMan - lower) / (upper - lower);
+      // バケツ内で線形補間
+      const frac = (savingsMan - lower) / ((upper as number) - lower);
       cumulative += freq * frac;
-      percentile = cumulative * 100;
       break;
     }
-    percentile = cumulative * 100;
   }
 
-  percentile = Math.max(0.5, Math.min(99.5, percentile));
+  const percentile = Math.max(0.5, Math.min(99.5, cumulative * 100));
   return 50 + 10 * normsinv(percentile / 100);
 }
 

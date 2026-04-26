@@ -42,6 +42,7 @@ export default function HensachiCard({ savingsMan, age, isSingle }: Props) {
         </div>
         <div className="gauge-labels">
           <span>20</span>
+          <span>30</span>
           <span>40</span>
           <span>50</span>
           <span>60</span>
