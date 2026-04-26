@@ -91,6 +91,11 @@ export default function InputPanel({ input, isSingle, onChange, dieWithZeroTarge
 
   const pensionAdj = pensionAdjustLabel(input.pensionStartAge ?? PENSION_BASE_AGE);
 
+  // 取り崩し率で生活費をカバーできるか検証
+  const annualWithdrawable = input.targetAsset * (input.withdrawalRate / 100);
+  const minTargetForExpenses = Math.ceil(input.annualExpenses / (input.withdrawalRate / 100) / 100) * 100;
+  const isTargetInsufficient = input.annualExpenses > 0 && annualWithdrawable < input.annualExpenses;
+
   return (
     <div className="input-panel">
       {/* ── 基本情報 ── */}
@@ -295,6 +300,23 @@ export default function InputPanel({ input, isSingle, onChange, dieWithZeroTarge
             )}
           </div>
         </div>
+
+        {isTargetInsufficient && (
+          <div className="target-warning">
+            ⚠️ {input.targetAsset.toLocaleString()}万円の{input.withdrawalRate}%取り崩しでは年間
+            <strong>{annualWithdrawable.toFixed(0)}万円</strong>しか使えず、
+            生活費<strong>{input.annualExpenses}万円</strong>に届きません。
+            <br />
+            目標資産は最低
+            <button
+              className="warning-fix-btn"
+              onClick={() => update({ targetAsset: minTargetForExpenses })}
+            >
+              {minTargetForExpenses.toLocaleString()}万円
+            </button>
+            以上に設定してください。
+          </div>
+        )}
 
         <NumInput
           label="FIRE後〜年金前積立"
