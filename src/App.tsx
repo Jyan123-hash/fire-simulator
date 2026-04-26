@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { FireInput, calcFire } from './utils/fireCalc';
+import { FireInput, calcFire, calcDieWithZeroTarget } from './utils/fireCalc';
 import { useFireSettings } from './hooks/useFireSettings';
 import FireBanner from './components/FireBanner';
 import InputPanel from './components/InputPanel';
@@ -75,6 +75,14 @@ export default function App() {
   const totalSavings =
     input.currentInvestment + input.currentCash + input.dcCurrentAmount;
 
+  // Die with Zero: FIRE達成年齢（未達成なら現在年齢）基準で100歳ゼロになる必要資産
+  const dieWithZeroTarget = calcDieWithZeroTarget(
+    result.fireAge ?? input.currentAge,
+    input.annualExpenses,
+    input.annualRate,
+    result.pension,
+  );
+
   return (
     <div className="app">
       <header className="app-header">
@@ -95,7 +103,7 @@ export default function App() {
 
       <main className="app-main">
         <div className="left-col">
-          <InputPanel input={input} isSingle={isSingle} onChange={handleChange} />
+          <InputPanel input={input} isSingle={isSingle} onChange={handleChange} dieWithZeroTarget={dieWithZeroTarget} />
           <HensachiCard
             savingsMan={totalSavings}
             age={input.currentAge}

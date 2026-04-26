@@ -11,6 +11,7 @@ interface Props {
   input: FireInput;
   isSingle: boolean;
   onChange: (input: FireInput, isSingle: boolean) => void;
+  dieWithZeroTarget?: number;
 }
 
 function NumInput({
@@ -61,7 +62,7 @@ function pensionAdjustLabel(age: number): { text: string; color: string } {
   return { text: '基準（100%）', color: '#8892a8' };
 }
 
-export default function InputPanel({ input, isSingle, onChange }: Props) {
+export default function InputPanel({ input, isSingle, onChange, dieWithZeroTarget }: Props) {
   const update = (partial: Partial<FireInput>, newIsSingle?: boolean) => {
     onChange({ ...input, ...partial }, newIsSingle ?? isSingle);
   };
@@ -283,6 +284,15 @@ export default function InputPanel({ input, isSingle, onChange }: Props) {
             >
               推奨 {Math.round(input.annualExpenses / (input.withdrawalRate / 100)).toLocaleString()}万
             </button>
+            {dieWithZeroTarget !== undefined && (
+              <button
+                className="recommend-btn recommend-btn--dwz"
+                title="100歳で資産ゼロになる金額（Die with Zero）"
+                onClick={() => update({ targetAsset: dieWithZeroTarget })}
+              >
+                💀 {dieWithZeroTarget.toLocaleString()}万
+              </button>
+            )}
           </div>
         </div>
 

@@ -421,6 +421,17 @@ body {
   border-color: var(--fire);
 }
 
+.recommend-btn--dwz {
+  background: rgba(136,68,255,0.15);
+  border-color: rgba(136,68,255,0.5);
+  color: #bb88ff;
+}
+
+.recommend-btn--dwz:hover {
+  background: rgba(136,68,255,0.28);
+  border-color: #9966ff;
+}
+
 /* 総資産サマリ */
 .asset-summary {
   display: flex;

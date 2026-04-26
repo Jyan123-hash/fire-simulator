@@ -259,6 +259,38 @@ export function calcFire(input: FireInput): FireResult {
   return { fireAge, fireAsset, assetLifeAge, targetAsset, snapshots, pension };
 }
 
+// ── Die with Zero：100歳で資産ゼロになる必要資産額 ──────────────────────
+// 年金収入を考慮した複数フェーズの現在価値（PV）から算出
+//   Phase1: FIRE年齢 → 年金開始年齢  生活費全額を取り崩し
+//   Phase2: 年金開始年齢 → 100歳    (生活費 - 年金) を取り崩し
+export function calcDieWithZeroTarget(
+  fireAge: number,
+  annualExpenses: number,
+  annualRate: number,
+  pension: PensionInfo,
+): number {
+  const endAge = 100;
+  const pensionAge = Math.min(pension.pensionStartAge, endAge);
+  const n1 = Math.max(0, pensionAge - fireAge);
+  const n2 = Math.max(0, endAge - pensionAge);
+  const netWithdrawal2 = Math.max(0, annualExpenses - pension.totalAnnualPension);
+
+  if (annualRate <= 0) {
+    return Math.round(annualExpenses * n1 + netWithdrawal2 * n2);
+  }
+
+  const r = annualRate / 100;
+  // 年金前フェーズのPV（FIRE時点）
+  const pv1 = n1 > 0 ? annualExpenses * (1 - Math.pow(1 + r, -n1)) / r : 0;
+  // 年金後フェーズのPV（年金開始時点）→ FIRE時点に割り引く
+  const pv2AtPension = n2 > 0 && netWithdrawal2 > 0
+    ? netWithdrawal2 * (1 - Math.pow(1 + r, -n2)) / r
+    : 0;
+  const pv2AtFire = n1 > 0 ? pv2AtPension / Math.pow(1 + r, n1) : pv2AtPension;
+
+  return Math.round(pv1 + pv2AtFire);
+}
+
 export function formatAsset(man: number): string {
   if (man >= 10000) {
     const oku = man / 10000;
