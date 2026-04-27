@@ -65,10 +65,6 @@ function yTickFormatter(value: number): string {
     const oku = value / 10000;
     return oku % 1 === 0 ? `${oku}億` : `${oku.toFixed(1)}億`;
   }
-  if (value >= 1000) {
-    const sen = value / 1000;
-    return sen % 1 === 0 ? `${sen}千万` : `${sen.toFixed(1)}千万`;
-  }
   return `${value}万`;
 }
 
