@@ -70,6 +70,10 @@ export default function FireChart({ result }: Props) {
   const fireStartSnap = snapshots.find((s) => s.isWithdrawal);
   const fireStartAge = fireStartSnap?.age ?? null;
 
+  // iDeCo/DC が実際にデータを持つ場合のみ描画（0ならスタックに含めない）
+  const hasIdeco = snapshots.some((s) => s.idecoPart > 0);
+  const hasDc    = snapshots.some((s) => s.dcPart > 0);
+
   // y軸：目標資産の1.3倍でキャップ、1000万刻みのtick生成
   const datMax = Math.max(...snapshots.map((s) => s.totalAsset));
   const yMax = Math.ceil(Math.min(datMax, Math.max(targetAsset * 1.3, 1000)) / 1000) * 1000;
@@ -210,24 +214,28 @@ export default function FireChart({ result }: Props) {
             fill="url(#gradCash)"
             name="現金"
           />
-          <Area
-            type="monotone"
-            dataKey="dcPart"
-            stackId="1"
-            stroke="#ffaa00"
-            strokeWidth={1.5}
-            fill="url(#gradDC)"
-            name="DC"
-          />
-          <Area
-            type="monotone"
-            dataKey="idecoPart"
-            stackId="1"
-            stroke="#44cc88"
-            strokeWidth={1.5}
-            fill="url(#gradIdeco)"
-            name="iDeCo"
-          />
+          {hasDc && (
+            <Area
+              type="monotone"
+              dataKey="dcPart"
+              stackId="1"
+              stroke="#ffaa00"
+              strokeWidth={1.5}
+              fill="url(#gradDC)"
+              name="DC"
+            />
+          )}
+          {hasIdeco && (
+            <Area
+              type="monotone"
+              dataKey="idecoPart"
+              stackId="1"
+              stroke="#44cc88"
+              strokeWidth={1.5}
+              fill="url(#gradIdeco)"
+              name="iDeCo"
+            />
+          )}
           <Area
             type="monotone"
             dataKey="investmentPart"
@@ -245,14 +253,18 @@ export default function FireChart({ result }: Props) {
           <span className="legend-dot" style={{ background: '#aaaacc' }} />
           現金・預金
         </span>
-        <span className="legend-item">
-          <span className="legend-dot" style={{ background: '#ffaa00' }} />
-          DC（企業型）の複利
-        </span>
-        <span className="legend-item">
-          <span className="legend-dot" style={{ background: '#44cc88' }} />
-          iDeCo の複利
-        </span>
+        {hasDc && (
+          <span className="legend-item">
+            <span className="legend-dot" style={{ background: '#ffaa00' }} />
+            DC（企業型）の複利
+          </span>
+        )}
+        {hasIdeco && (
+          <span className="legend-item">
+            <span className="legend-dot" style={{ background: '#44cc88' }} />
+            iDeCo の複利
+          </span>
+        )}
         <span className="legend-item">
           <span className="legend-dot" style={{ background: '#4488ff' }} />
           通常投資の複利
