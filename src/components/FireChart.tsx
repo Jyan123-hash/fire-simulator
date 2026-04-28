@@ -52,20 +52,8 @@ function CustomTooltip({
         <span className="dot" style={{ background: '#ffaa00' }} />
         DC：{formatAsset(d.dcPart)}
       </div>
-      <div className="tooltip-row">
-        <span className="dot" style={{ background: '#44cc88' }} />
-        通常積立：{formatAsset(d.accumulatedPart)}
-      </div>
     </div>
   );
-}
-
-function yTickFormatter(value: number): string {
-  if (value >= 10000) {
-    const oku = value / 10000;
-    return oku % 1 === 0 ? `${oku}億` : `${oku.toFixed(1)}億`;
-  }
-  return `${value}万`;
 }
 
 export default function FireChart({ result }: Props) {
@@ -76,6 +64,11 @@ export default function FireChart({ result }: Props) {
   const lastAge = snapshots[snapshots.length - 1].age;
   const fireStartSnap = snapshots.find((s) => s.isWithdrawal);
   const fireStartAge = fireStartSnap?.age ?? null;
+
+  // y軸：目標資産の1.3倍でキャップ、1000万刻みのtick生成
+  const datMax = Math.max(...snapshots.map((s) => s.totalAsset));
+  const yMax = Math.ceil(Math.min(datMax, Math.max(targetAsset * 1.3, 1000)) / 1000) * 1000;
+  const yTicks = Array.from({ length: yMax / 1000 + 1 }, (_, i) => i * 1000);
 
   return (
     <div className="chart-wrapper">
@@ -98,10 +91,6 @@ export default function FireChart({ result }: Props) {
               <stop offset="5%"  stopColor="#ffaa00" stopOpacity={0.85} />
               <stop offset="95%" stopColor="#ffaa00" stopOpacity={0.2} />
             </linearGradient>
-            <linearGradient id="gradAccumulated" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#44cc88" stopOpacity={0.85} />
-              <stop offset="95%" stopColor="#44cc88" stopOpacity={0.2} />
-            </linearGradient>
           </defs>
 
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
@@ -114,8 +103,11 @@ export default function FireChart({ result }: Props) {
           <YAxis
             stroke="#aaa"
             tick={{ fill: '#aaa', fontSize: 11 }}
-            tickFormatter={yTickFormatter}
-            width={58}
+            tickFormatter={(v) => `${v}万`}
+            domain={[0, yMax]}
+            ticks={yTicks}
+            interval={0}
+            width={72}
           />
           <Tooltip content={<CustomTooltip />} />
 
@@ -227,15 +219,6 @@ export default function FireChart({ result }: Props) {
             fill="url(#gradDC)"
             name="DC"
           />
-          <Area
-            type="monotone"
-            dataKey="accumulatedPart"
-            stackId="1"
-            stroke="#44cc88"
-            strokeWidth={1.5}
-            fill="url(#gradAccumulated)"
-            name="通常積立"
-          />
         </AreaChart>
       </ResponsiveContainer>
 
@@ -251,10 +234,6 @@ export default function FireChart({ result }: Props) {
         <span className="legend-item">
           <span className="legend-dot" style={{ background: '#ffaa00' }} />
           DC（初期+積立）の複利
-        </span>
-        <span className="legend-item">
-          <span className="legend-dot" style={{ background: '#44cc88' }} />
-          通常積立の複利
         </span>
         <span className="legend-item">
           <span className="legend-dot" style={{ background: '#ff4444', borderRadius: 0 }} />

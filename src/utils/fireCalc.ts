@@ -151,18 +151,16 @@ export function calcFire(input: FireInput): FireResult {
     let inv  = currentInvestment;
     const cash = currentCash;
     let dc   = dcCurrentAmount;
-    let acc  = 0;
 
     for (let yr = currentAge; yr < simEndAge; yr++) {
       const contrib = getMonthlyContribution(yr);
       for (let m = 0; m < 12; m++) {
-        acc += contrib;
-        dc  += dcMonthlyContribution;
+        inv  += contrib;           // 積立を投資に統合
+        dc   += dcMonthlyContribution;
         inv  *= 1 + monthlyRate;
         dc   *= 1 + monthlyRate;
-        acc  *= 1 + monthlyRate;
       }
-      const total = inv + cash + dc + acc;
+      const total = inv + cash + dc;
       if (total >= targetAsset && fireAge === null) {
         fireAge   = yr + 1;
         fireAsset = total;
@@ -183,26 +181,24 @@ export function calcFire(input: FireInput): FireResult {
   let inv  = currentInvestment;
   let cash = currentCash;
   let dc   = dcCurrentAmount;
-  let acc  = 0;
   let inWithdrawal = false;
 
   for (let yr = currentAge; yr < simEndAge; yr++) {
     if (!inWithdrawal) {
-      // 積立フェーズ
+      // 積立フェーズ（積立額は投資に統合）
       const contrib = getMonthlyContribution(yr);
       for (let m = 0; m < 12; m++) {
-        acc += contrib;
-        dc  += dcMonthlyContribution;
+        inv  += contrib;
+        dc   += dcMonthlyContribution;
         inv  *= 1 + monthlyRate;
         dc   *= 1 + monthlyRate;
-        acc  *= 1 + monthlyRate;
       }
-      const total = inv + cash + dc + acc;
+      const total = inv + cash + dc;
       if (fireAge !== null && yr + 1 >= fireAge) inWithdrawal = true;
 
       snapshots.push({
         age: yr + 1, totalAsset: total,
-        investmentPart: inv, cashPart: cash, dcPart: dc, accumulatedPart: acc,
+        investmentPart: inv, cashPart: cash, dcPart: dc, accumulatedPart: 0,
         isFire: inWithdrawal, isWithdrawal: inWithdrawal,
       });
     } else {
@@ -210,7 +206,6 @@ export function calcFire(input: FireInput): FireResult {
       const ageAtEnd = yr + 1;
       const pensionActive = ageAtEnd >= pension.pensionStartAge;
       const monthlyPensionIncome = pensionActive ? pension.monthlyPension : 0;
-      // 年金受給前後で積立額を切り替え
       const monthlyContrib = pensionActive
         ? postPensionMonthlyInvestment
         : postFireMonthlyInvestment;
@@ -219,15 +214,14 @@ export function calcFire(input: FireInput): FireResult {
       const dcUnlocked = ageAtEnd >= 60;
 
       for (let m = 0; m < 12; m++) {
-        acc += monthlyContrib;
+        inv  += monthlyContrib;   // FIRE後積立も投資に統合
         inv  *= 1 + monthlyRate;
         dc   *= 1 + monthlyRate;
-        acc  *= 1 + monthlyRate;
 
         // 引き出し可能な資産（DCは60歳未満は除外）
-        const liquidNow = inv + cash + acc + (dcUnlocked ? dc : 0);
+        const liquidNow = inv + cash + (dcUnlocked ? dc : 0);
 
-        // 取り崩し額 = 年間生活費 ÷ 12 - 年金収入（固定支出ベース）
+        // 取り崩し額 = 年間生活費 ÷ 12 - 年金収入
         const monthlyFromAssets = Math.max(0, annualExpenses / 12 - monthlyPensionIncome);
 
         if (liquidNow > 0 && monthlyFromAssets > 0) {
@@ -235,16 +229,14 @@ export function calcFire(input: FireInput): FireResult {
           const ratio = withdrawal / liquidNow;
           inv  -= inv  * ratio;
           cash -= cash * ratio;
-          acc  -= acc  * ratio;
           if (dcUnlocked) dc -= dc * ratio;
           if (inv  < 0) inv  = 0;
           if (cash < 0) cash = 0;
           if (dc   < 0) dc   = 0;
-          if (acc  < 0) acc  = 0;
         }
       }
 
-      const total = inv + cash + dc + acc;
+      const total = inv + cash + dc;
       if (total <= 0 && assetLifeAge === null) assetLifeAge = yr + 1;
 
       snapshots.push({
@@ -253,7 +245,7 @@ export function calcFire(input: FireInput): FireResult {
         investmentPart:  Math.max(0, inv),
         cashPart:        Math.max(0, cash),
         dcPart:          Math.max(0, dc),
-        accumulatedPart: Math.max(0, acc),
+        accumulatedPart: 0,
         isFire: true, isWithdrawal: true,
       });
     }
