@@ -50,7 +50,8 @@ export default function App() {
 
     loadSettings(user.uid).then((saved) => {
       if (saved) {
-        setInput(saved.input);
+        // 古い保存データに新フィールドが無い場合でも DEFAULT_INPUT でフォールバック
+        setInput({ ...DEFAULT_INPUT, ...saved.input });
         setIsSingle(saved.isSingle);
       }
     });
