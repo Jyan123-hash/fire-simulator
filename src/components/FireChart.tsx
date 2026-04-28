@@ -203,21 +203,21 @@ export default function FireChart({ result }: Props) {
           />
           <Area
             type="monotone"
-            dataKey="investmentPart"
-            stackId="1"
-            stroke="#4488ff"
-            strokeWidth={1.5}
-            fill="url(#gradInvestment)"
-            name="通常投資"
-          />
-          <Area
-            type="monotone"
             dataKey="dcPart"
             stackId="1"
             stroke="#ffaa00"
             strokeWidth={1.5}
             fill="url(#gradDC)"
             name="DC"
+          />
+          <Area
+            type="monotone"
+            dataKey="investmentPart"
+            stackId="1"
+            stroke="#4488ff"
+            strokeWidth={1.5}
+            fill="url(#gradInvestment)"
+            name="通常投資"
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -228,12 +228,12 @@ export default function FireChart({ result }: Props) {
           現金・預金
         </span>
         <span className="legend-item">
-          <span className="legend-dot" style={{ background: '#4488ff' }} />
-          通常投資の複利
-        </span>
-        <span className="legend-item">
           <span className="legend-dot" style={{ background: '#ffaa00' }} />
           DC（初期+積立）の複利
+        </span>
+        <span className="legend-item">
+          <span className="legend-dot" style={{ background: '#4488ff' }} />
+          通常投資の複利
         </span>
         <span className="legend-item">
           <span className="legend-dot" style={{ background: '#ff4444', borderRadius: 0 }} />
