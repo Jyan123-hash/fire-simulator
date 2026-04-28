@@ -131,7 +131,7 @@ export function calcFire(input: FireInput): FireResult {
   } = input;
 
   const monthlyRate = Math.pow(1 + annualRate / 100, 1 / 12) - 1;
-  const simEndAge   = Math.min(Math.max(currentAge + 65, 90), 105);
+  const simEndAge   = Math.min(Math.max(currentAge + 65, 101), 105);
 
   const sortedSteps = [...steps].sort((a, b) => a.startAge - b.startAge);
 
@@ -254,36 +254,42 @@ export function calcFire(input: FireInput): FireResult {
   return { fireAge, fireAsset, assetLifeAge, targetAsset, snapshots, pension };
 }
 
-// ── Die with Zero：100歳で資産ゼロになる必要資産額 ──────────────────────
-// 年金収入を考慮した複数フェーズの現在価値（PV）から算出
-//   Phase1: FIRE年齢 → 年金開始年齢  生活費全額を取り崩し
-//   Phase2: 年金開始年齢 → 100歳    (生活費 - 年金) を取り崩し
-export function calcDieWithZeroTarget(
-  fireAge: number,
-  annualExpenses: number,
-  annualRate: number,
-  pension: PensionInfo,
-): number {
-  const endAge = 100;
-  const pensionAge = Math.min(pension.pensionStartAge, endAge);
-  const n1 = Math.max(0, pensionAge - fireAge);
-  const n2 = Math.max(0, endAge - pensionAge);
-  const netWithdrawal2 = Math.max(0, annualExpenses - pension.totalAnnualPension);
+// ── Die with Zero：100歳で資産ゼロになる必要FIRE目標資産額 ──────────────────────
+// シミュレーションベースの二分探索で算出。
+// targetAsset を変化させながら calcFire を繰り返し呼び出し、
+// 「100歳時点で資産が残る（≥0）」になる最小の targetAsset を求める。
+// DC60歳ロック・比例取り崩し・積立ステップ・年金など
+// すべての入力パラメータを正確に反映する。
+//
+// FIRE年齢は離散（年単位）なため「ちょうど0」には一般にならない。
+// ここでは「100歳まで資産が尽きない最小の目標額」を返す。
+// hi はクロスオーバーの直上に収束するため Math.ceil で100万単位に繰り上げ、
+// 確実に100歳まで資産が持つ目標額を返す。
+export function calcDieWithZeroTarget(input: FireInput): number {
+  const TARGET_AGE = 100;
 
-  if (annualRate <= 0) {
-    return Math.round(annualExpenses * n1 + netWithdrawal2 * n2);
+  let lo = 0;
+  let hi = 1_000_000; // 10億円 上限
+
+  for (let i = 0; i < 52; i++) {
+    const mid = (lo + hi) / 2;
+    const result = calcFire({ ...input, targetAsset: mid });
+    const snap = result.snapshots.find((s) => s.age === TARGET_AGE);
+    // snap が存在しない場合（simEndAge < 100 等）は 0 として扱う
+    const assetAt100 = snap?.totalAsset ?? 0;
+
+    if (assetAt100 > 0) {
+      // 100歳時点でプラス → 目標を下げてFIREを早める（取り崩し期間を延ばす）
+      hi = mid;
+    } else {
+      // 100歳時点でゼロ以下 → 目標を上げてFIREを遅らせる（取り崩し元本を増やす）
+      lo = mid;
+    }
   }
 
-  const r = annualRate / 100;
-  // 年金前フェーズのPV（FIRE時点）
-  const pv1 = n1 > 0 ? annualExpenses * (1 - Math.pow(1 + r, -n1)) / r : 0;
-  // 年金後フェーズのPV（年金開始時点）→ FIRE時点に割り引く
-  const pv2AtPension = n2 > 0 && netWithdrawal2 > 0
-    ? netWithdrawal2 * (1 - Math.pow(1 + r, -n2)) / r
-    : 0;
-  const pv2AtFire = n1 > 0 ? pv2AtPension / Math.pow(1 + r, n1) : pv2AtPension;
-
-  return Math.round(pv1 + pv2AtFire);
+  // hi はクロスオーバー直上に収束している。
+  // Math.ceil で100万単位に繰り上げることで、確実に100歳超まで資産が持つ最小目標額を返す。
+  return Math.ceil(hi / 100) * 100;
 }
 
 export function formatAsset(man: number): string {

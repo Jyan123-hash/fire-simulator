@@ -75,13 +75,8 @@ export default function App() {
   const totalSavings =
     input.currentInvestment + input.currentCash + input.dcCurrentAmount;
 
-  // Die with Zero: FIRE達成年齢（未達成なら現在年齢）基準で100歳ゼロになる必要資産
-  const dieWithZeroTarget = calcDieWithZeroTarget(
-    result.fireAge ?? input.currentAge,
-    input.annualExpenses,
-    input.annualRate,
-    result.pension,
-  );
+  // Die with Zero: 全入力パラメータを考慮したシミュレーションで100歳ゼロになるFIRE目標資産
+  const dieWithZeroTarget = useMemo(() => calcDieWithZeroTarget(input), [input]);
 
   return (
     <div className="app">
