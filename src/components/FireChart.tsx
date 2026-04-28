@@ -1,6 +1,7 @@
 import {
   AreaChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -96,10 +97,7 @@ export default function FireChart({ result }: Props) {
               <stop offset="5%"  stopColor="#ffaa00" stopOpacity={0.85} />
               <stop offset="95%" stopColor="#ffaa00" stopOpacity={0.2} />
             </linearGradient>
-            <linearGradient id="gradIdeco" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#44cc88" stopOpacity={0.85} />
-              <stop offset="95%" stopColor="#44cc88" stopOpacity={0.2} />
-            </linearGradient>
+
             <linearGradient id="gradInvestment" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%"  stopColor="#4488ff" stopOpacity={0.85} />
               <stop offset="95%" stopColor="#4488ff" stopOpacity={0.2} />
@@ -225,14 +223,14 @@ export default function FireChart({ result }: Props) {
               name="DC"
             />
           )}
+          {/* iDeCo は独立した Line として描画（スタックから外して絶対値で表示） */}
           {hasIdeco && (
-            <Area
+            <Line
               type="monotone"
               dataKey="idecoPart"
-              stackId="1"
               stroke="#44cc88"
-              strokeWidth={1.5}
-              fill="url(#gradIdeco)"
+              strokeWidth={2}
+              dot={false}
               name="iDeCo"
             />
           )}
