@@ -21,6 +21,7 @@ interface TooltipPayload {
   investmentPart: number;
   cashPart: number;
   dcPart: number;
+  idecoPart: number;
   accumulatedPart: number;
   totalAsset: number;
 }
@@ -45,12 +46,16 @@ function CustomTooltip({
         現金：{formatAsset(d.cashPart)}
       </div>
       <div className="tooltip-row">
-        <span className="dot" style={{ background: '#4488ff' }} />
-        通常投資：{formatAsset(d.investmentPart)}
-      </div>
-      <div className="tooltip-row">
         <span className="dot" style={{ background: '#ffaa00' }} />
         DC：{formatAsset(d.dcPart)}
+      </div>
+      <div className="tooltip-row">
+        <span className="dot" style={{ background: '#44cc88' }} />
+        iDeCo：{formatAsset(d.idecoPart)}
+      </div>
+      <div className="tooltip-row">
+        <span className="dot" style={{ background: '#4488ff' }} />
+        通常投資：{formatAsset(d.investmentPart)}
       </div>
     </div>
   );
@@ -83,13 +88,17 @@ export default function FireChart({ result }: Props) {
               <stop offset="5%"  stopColor="#aaaacc" stopOpacity={0.7} />
               <stop offset="95%" stopColor="#aaaacc" stopOpacity={0.2} />
             </linearGradient>
-            <linearGradient id="gradInvestment" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#4488ff" stopOpacity={0.85} />
-              <stop offset="95%" stopColor="#4488ff" stopOpacity={0.2} />
-            </linearGradient>
             <linearGradient id="gradDC" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%"  stopColor="#ffaa00" stopOpacity={0.85} />
               <stop offset="95%" stopColor="#ffaa00" stopOpacity={0.2} />
+            </linearGradient>
+            <linearGradient id="gradIdeco" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor="#44cc88" stopOpacity={0.85} />
+              <stop offset="95%" stopColor="#44cc88" stopOpacity={0.2} />
+            </linearGradient>
+            <linearGradient id="gradInvestment" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor="#4488ff" stopOpacity={0.85} />
+              <stop offset="95%" stopColor="#4488ff" stopOpacity={0.2} />
             </linearGradient>
           </defs>
 
@@ -150,7 +159,7 @@ export default function FireChart({ result }: Props) {
             </ReferenceLine>
           )}
 
-          {/* DC解禁ライン（FIRE後かつ60歳以降の場合のみ表示） */}
+          {/* DC・iDeCo解禁ライン（FIRE後かつ60歳以降の場合のみ表示） */}
           {fireAge !== null && DC_AVAILABLE_AGE > fireAge && DC_AVAILABLE_AGE <= lastAge && (
             <ReferenceLine
               x={DC_AVAILABLE_AGE}
@@ -159,7 +168,7 @@ export default function FireChart({ result }: Props) {
               strokeWidth={1.5}
             >
               <Label
-                value="🔓 DC解禁"
+                value="🔓 DC・iDeCo解禁"
                 position="top"
                 fill="#ffaa00"
                 fontSize={11}
@@ -191,7 +200,7 @@ export default function FireChart({ result }: Props) {
             </ReferenceLine>
           )}
 
-          {/* スタック順: 下から現金→投資→DC→積立 */}
+          {/* スタック順（下から）: 現金 → DC → iDeCo → 通常投資 */}
           <Area
             type="monotone"
             dataKey="cashPart"
@@ -212,6 +221,15 @@ export default function FireChart({ result }: Props) {
           />
           <Area
             type="monotone"
+            dataKey="idecoPart"
+            stackId="1"
+            stroke="#44cc88"
+            strokeWidth={1.5}
+            fill="url(#gradIdeco)"
+            name="iDeCo"
+          />
+          <Area
+            type="monotone"
             dataKey="investmentPart"
             stackId="1"
             stroke="#4488ff"
@@ -229,7 +247,11 @@ export default function FireChart({ result }: Props) {
         </span>
         <span className="legend-item">
           <span className="legend-dot" style={{ background: '#ffaa00' }} />
-          DC（初期+積立）の複利
+          DC（企業型）の複利
+        </span>
+        <span className="legend-item">
+          <span className="legend-dot" style={{ background: '#44cc88' }} />
+          iDeCo の複利
         </span>
         <span className="legend-item">
           <span className="legend-dot" style={{ background: '#4488ff' }} />

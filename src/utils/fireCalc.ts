@@ -10,6 +10,8 @@ export interface FireInput {
   currentCash: number;              // 現在の現金（万円）
   dcCurrentAmount: number;          // 企業型DC 現在の投資額（万円）
   dcMonthlyContribution: number;    // 企業型DC 毎月積立額（万円）
+  idecoCurrentAmount: number;       // iDeCo 現在の評価額（万円）
+  idecoMonthlyContribution: number; // iDeCo 毎月積立額（万円）
   annualRate: number;               // %
   steps: AccumulationStep[];
   withdrawalRate: number;           // % ← 推奨FIRE目標額の表示計算のみ
@@ -39,6 +41,7 @@ export interface YearlySnapshot {
   investmentPart: number;
   cashPart: number;
   dcPart: number;
+  idecoPart: number;
   accumulatedPart: number;
   isFire: boolean;
   isWithdrawal: boolean;
@@ -119,6 +122,8 @@ export function calcFire(input: FireInput): FireResult {
     currentCash,
     dcCurrentAmount,
     dcMonthlyContribution,
+    idecoCurrentAmount,
+    idecoMonthlyContribution,
     annualRate,
     steps,
     annualExpenses,
@@ -148,19 +153,22 @@ export function calcFire(input: FireInput): FireResult {
   let fireAge: number | null = null;
   let fireAsset: number | null = null;
   {
-    let inv  = currentInvestment;
+    let inv   = currentInvestment;
     const cash = currentCash;
-    let dc   = dcCurrentAmount;
+    let dc    = dcCurrentAmount;
+    let ideco = idecoCurrentAmount;
 
     for (let yr = currentAge; yr < simEndAge; yr++) {
       const contrib = getMonthlyContribution(yr);
       for (let m = 0; m < 12; m++) {
-        inv  += contrib;           // 積立を投資に統合
-        dc   += dcMonthlyContribution;
-        inv  *= 1 + monthlyRate;
-        dc   *= 1 + monthlyRate;
+        inv   += contrib;
+        dc    += dcMonthlyContribution;
+        ideco += idecoMonthlyContribution;
+        inv   *= 1 + monthlyRate;
+        dc    *= 1 + monthlyRate;
+        ideco *= 1 + monthlyRate;
       }
-      const total = inv + cash + dc;
+      const total = inv + cash + dc + ideco;
       if (total >= targetAsset && fireAge === null) {
         fireAge   = yr + 1;
         fireAsset = total;
@@ -178,27 +186,31 @@ export function calcFire(input: FireInput): FireResult {
   const snapshots: YearlySnapshot[] = [];
   let assetLifeAge: number | null = null;
 
-  let inv  = currentInvestment;
-  let cash = currentCash;
-  let dc   = dcCurrentAmount;
+  let inv   = currentInvestment;
+  let cash  = currentCash;
+  let dc    = dcCurrentAmount;
+  let ideco = idecoCurrentAmount;
   let inWithdrawal = false;
 
   for (let yr = currentAge; yr < simEndAge; yr++) {
     if (!inWithdrawal) {
-      // 積立フェーズ（積立額は投資に統合）
+      // 積立フェーズ
       const contrib = getMonthlyContribution(yr);
       for (let m = 0; m < 12; m++) {
-        inv  += contrib;
-        dc   += dcMonthlyContribution;
-        inv  *= 1 + monthlyRate;
-        dc   *= 1 + monthlyRate;
+        inv   += contrib;
+        dc    += dcMonthlyContribution;
+        ideco += idecoMonthlyContribution;
+        inv   *= 1 + monthlyRate;
+        dc    *= 1 + monthlyRate;
+        ideco *= 1 + monthlyRate;
       }
-      const total = inv + cash + dc;
+      const total = inv + cash + dc + ideco;
       if (fireAge !== null && yr + 1 >= fireAge) inWithdrawal = true;
 
       snapshots.push({
         age: yr + 1, totalAsset: total,
-        investmentPart: inv, cashPart: cash, dcPart: dc, accumulatedPart: 0,
+        investmentPart: inv, cashPart: cash, dcPart: dc, idecoPart: ideco,
+        accumulatedPart: 0,
         isFire: inWithdrawal, isWithdrawal: inWithdrawal,
       });
     } else {
@@ -210,16 +222,18 @@ export function calcFire(input: FireInput): FireResult {
         ? postPensionMonthlyInvestment
         : postFireMonthlyInvestment;
 
-      // DC は60歳から引き出し可能
-      const dcUnlocked = ageAtEnd >= 60;
+      // DC・iDeCo は60歳から引き出し可能
+      const lockedUnlocked = ageAtEnd >= DC_AVAILABLE_AGE;
 
       for (let m = 0; m < 12; m++) {
-        inv  += monthlyContrib;   // FIRE後積立も投資に統合
-        inv  *= 1 + monthlyRate;
-        dc   *= 1 + monthlyRate;
+        inv   += monthlyContrib;
+        inv   *= 1 + monthlyRate;
+        dc    *= 1 + monthlyRate;
+        ideco *= 1 + monthlyRate;
 
-        // 引き出し可能な資産（DCは60歳未満は除外）
-        const liquidNow = inv + cash + (dcUnlocked ? dc : 0);
+        // 引き出し可能な資産（DC・iDeCoは60歳未満は除外）
+        const liquidNow =
+          inv + cash + (lockedUnlocked ? dc + ideco : 0);
 
         // 取り崩し額 = 年間生活費 ÷ 12 - 年金収入
         const monthlyFromAssets = Math.max(0, annualExpenses / 12 - monthlyPensionIncome);
@@ -229,14 +243,18 @@ export function calcFire(input: FireInput): FireResult {
           const ratio = withdrawal / liquidNow;
           inv  -= inv  * ratio;
           cash -= cash * ratio;
-          if (dcUnlocked) dc -= dc * ratio;
-          if (inv  < 0) inv  = 0;
-          if (cash < 0) cash = 0;
-          if (dc   < 0) dc   = 0;
+          if (lockedUnlocked) {
+            dc    -= dc    * ratio;
+            ideco -= ideco * ratio;
+          }
+          if (inv   < 0) inv   = 0;
+          if (cash  < 0) cash  = 0;
+          if (dc    < 0) dc    = 0;
+          if (ideco < 0) ideco = 0;
         }
       }
 
-      const total = inv + cash + dc;
+      const total = inv + cash + dc + ideco;
       if (total <= 0 && assetLifeAge === null) assetLifeAge = yr + 1;
 
       snapshots.push({
@@ -245,6 +263,7 @@ export function calcFire(input: FireInput): FireResult {
         investmentPart:  Math.max(0, inv),
         cashPart:        Math.max(0, cash),
         dcPart:          Math.max(0, dc),
+        idecoPart:       Math.max(0, ideco),
         accumulatedPart: 0,
         isFire: true, isWithdrawal: true,
       });

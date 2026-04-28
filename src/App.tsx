@@ -14,6 +14,8 @@ const DEFAULT_INPUT: FireInput = {
   currentCash: 50,
   dcCurrentAmount: 80,
   dcMonthlyContribution: 2,
+  idecoCurrentAmount: 0,
+  idecoMonthlyContribution: 0,
   annualRate: 5,
   steps: [
     { startAge: 30, endAge: 35, monthlyAmount: 5 },
@@ -73,7 +75,7 @@ export default function App() {
   };
 
   const totalSavings =
-    input.currentInvestment + input.currentCash + input.dcCurrentAmount;
+    input.currentInvestment + input.currentCash + input.dcCurrentAmount + input.idecoCurrentAmount;
 
   // Die with Zero: 全入力パラメータを考慮したシミュレーションで100歳ゼロになるFIRE目標資産
   const dieWithZeroTarget = useMemo(() => calcDieWithZeroTarget(input), [input]);

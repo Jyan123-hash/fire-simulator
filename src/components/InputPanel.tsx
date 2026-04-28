@@ -87,7 +87,7 @@ export default function InputPanel({ input, isSingle, onChange, dieWithZeroTarge
   };
 
   const totalCurrentAssets =
-    input.currentInvestment + input.currentCash + input.dcCurrentAmount;
+    input.currentInvestment + input.currentCash + input.dcCurrentAmount + input.idecoCurrentAmount;
 
   const pensionAdj = pensionAdjustLabel(input.pensionStartAge ?? PENSION_BASE_AGE);
 
@@ -176,6 +176,25 @@ export default function InputPanel({ input, isSingle, onChange, dieWithZeroTarge
           label="毎月積立額"
           value={input.dcMonthlyContribution}
           onChange={(v) => update({ dcMonthlyContribution: v })}
+          min={0} step={0.5} unit="万円/月"
+        />
+      </section>
+
+      {/* ── iDeCo ── */}
+      <section className="input-section">
+        <h3 className="section-title">iDeCo（個人型確定拠出年金）</h3>
+
+        <NumInput
+          label="現在の評価額"
+          value={input.idecoCurrentAmount}
+          onChange={(v) => update({ idecoCurrentAmount: v })}
+          min={0} step={10} unit="万円"
+        />
+
+        <NumInput
+          label="毎月積立額"
+          value={input.idecoMonthlyContribution}
+          onChange={(v) => update({ idecoMonthlyContribution: v })}
           min={0} step={0.5} unit="万円/月"
         />
       </section>
