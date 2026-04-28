@@ -150,6 +150,9 @@ export function calcFire(input: FireInput): FireResult {
   }
 
   // ── Phase 1: fireAge を特定 ───────────────────────────────────────
+  // FIRE判定は「流動資産 + DC」ベースで行う。
+  // iDeCo は60歳まで引き出し不可のため判定に含めない。
+  // 含めると iDeCo 積立を増やすほど FIRE が早まり流動資産が不足するため。
   let fireAge: number | null = null;
   let fireAsset: number | null = null;
   {
@@ -168,10 +171,11 @@ export function calcFire(input: FireInput): FireResult {
         dc    *= 1 + monthlyRate;
         ideco *= 1 + monthlyRate;
       }
-      const total = inv + cash + dc + ideco;
-      if (total >= targetAsset && fireAge === null) {
+      // iDeCo を除いた合計で FIRE 判定（iDeCo は60歳以降の上乗せとして扱う）
+      const fireDetectionTotal = inv + cash + dc;
+      if (fireDetectionTotal >= targetAsset && fireAge === null) {
         fireAge   = yr + 1;
-        fireAsset = total;
+        fireAsset = inv + cash + dc + ideco; // 実際の総資産はiDeCoも含める
       }
     }
   }
