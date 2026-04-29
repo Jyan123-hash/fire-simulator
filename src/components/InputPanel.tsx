@@ -11,7 +11,6 @@ interface Props {
   input: FireInput;
   isSingle: boolean;
   onChange: (input: FireInput, isSingle: boolean) => void;
-  dieWithZeroTarget?: number;
 }
 
 function NumInput({
@@ -62,7 +61,7 @@ function pensionAdjustLabel(age: number): { text: string; color: string } {
   return { text: '基準（100%）', color: '#8892a8' };
 }
 
-export default function InputPanel({ input, isSingle, onChange, dieWithZeroTarget }: Props) {
+export default function InputPanel({ input, isSingle, onChange }: Props) {
   const update = (partial: Partial<FireInput>, newIsSingle?: boolean) => {
     onChange({ ...input, ...partial }, newIsSingle ?? isSingle);
   };
@@ -91,10 +90,13 @@ export default function InputPanel({ input, isSingle, onChange, dieWithZeroTarge
 
   const pensionAdj = pensionAdjustLabel(input.pensionStartAge ?? PENSION_BASE_AGE);
 
-  // 取り崩し率で生活費をカバーできるか検証
-  const annualWithdrawable = input.targetAsset * (input.withdrawalRate / 100);
-  const minTargetForExpenses = Math.ceil(input.annualExpenses / (input.withdrawalRate / 100) / 100) * 100;
-  const isTargetInsufficient = input.annualExpenses > 0 && annualWithdrawable < input.annualExpenses;
+  // 取り崩し率（自動計算・表示用）
+  const withdrawalRate = input.targetAsset > 0
+    ? (input.annualExpenses / input.targetAsset) * 100
+    : 0;
+
+  // 4%ルール推奨目標資産
+  const recommended4pct = Math.round(input.annualExpenses / 0.04);
 
   return (
     <div className="input-panel">
@@ -278,13 +280,6 @@ export default function InputPanel({ input, isSingle, onChange, dieWithZeroTarge
           min={0} step={10} unit="万円/年"
         />
 
-        <NumInput
-          label="年間取り崩し率"
-          value={input.withdrawalRate}
-          onChange={(v) => update({ withdrawalRate: v })}
-          min={1} max={20} step={0.1} unit="%"
-        />
-
         <div className="input-row">
           <label className="input-label">FIRE目標資産</label>
           <div className="target-asset-group">
@@ -301,53 +296,26 @@ export default function InputPanel({ input, isSingle, onChange, dieWithZeroTarge
             </div>
             <button
               className="recommend-btn"
-              title="取り崩し率から自動計算"
-              onClick={() =>
-                update({ targetAsset: Math.round(input.annualExpenses / (input.withdrawalRate / 100)) })
-              }
+              title="4%ルールで自動計算（生活費 ÷ 4%）"
+              onClick={() => update({ targetAsset: recommended4pct })}
             >
-              推奨 {Math.round(input.annualExpenses / (input.withdrawalRate / 100)).toLocaleString()}万
+              4%ルール {recommended4pct.toLocaleString()}万
             </button>
-            {dieWithZeroTarget !== undefined && (
-              <button
-                className="recommend-btn recommend-btn--dwz"
-                title="100歳で資産ゼロになる金額（Die with Zero）"
-                onClick={() => update({ targetAsset: dieWithZeroTarget })}
-              >
-                💀 {dieWithZeroTarget.toLocaleString()}万
-              </button>
-            )}
           </div>
         </div>
 
-        {isTargetInsufficient && (
-          <div className="target-warning">
-            ⚠️ {input.targetAsset.toLocaleString()}万円の{input.withdrawalRate}%取り崩しでは年間
-            <strong>{annualWithdrawable.toFixed(0)}万円</strong>しか使えず、
-            生活費<strong>{input.annualExpenses}万円</strong>に届きません。
-            <br />
-            目標資産は最低
-            <button
-              className="warning-fix-btn"
-              onClick={() => update({ targetAsset: minTargetForExpenses })}
-            >
-              {minTargetForExpenses.toLocaleString()}万円
-            </button>
-            以上に設定してください。
-          </div>
-        )}
+        {/* 取り崩し率（自動表示） */}
+        <div className="input-row info-row">
+          <label className="input-label">取り崩し率（自動）</label>
+          <span className={`info-value ${withdrawalRate > 4 ? 'info-value--warn' : 'info-value--neutral'}`}>
+            {withdrawalRate.toFixed(2)}%
+          </span>
+        </div>
 
         <NumInput
           label="FIRE後〜年金前積立"
           value={input.postFireMonthlyInvestment}
           onChange={(v) => update({ postFireMonthlyInvestment: v })}
-          min={0} step={0.5} unit="万円/月"
-        />
-
-        <NumInput
-          label="年金受給後の取り崩し"
-          value={input.postPensionMonthlyWithdrawal}
-          onChange={(v) => update({ postPensionMonthlyWithdrawal: v })}
           min={0} step={0.5} unit="万円/月"
         />
 

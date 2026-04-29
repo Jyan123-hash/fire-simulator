@@ -7,18 +7,16 @@ export interface AccumulationStep {
 export interface FireInput {
   currentAge: number;
   currentInvestment: number;        // 現在の投資額（万円）
-  currentCash: number;              // 現在の現金（万円）
+  currentCash: number;              // 現在の現金（万円）固定・利回りなし
   dcCurrentAmount: number;          // 企業型DC 現在の投資額（万円）
   dcMonthlyContribution: number;    // 企業型DC 毎月積立額（万円）
   idecoCurrentAmount: number;       // iDeCo 現在の評価額（万円）
   idecoMonthlyContribution: number; // iDeCo 毎月積立額（万円）
-  annualRate: number;               // %
+  annualRate: number;               // 年利 %
   steps: AccumulationStep[];
-  withdrawalRate: number;           // % ← 推奨FIRE目標額の表示計算のみ
-  annualExpenses: number;           // 万円/年
+  annualExpenses: number;           // 年間生活費（万円）固定
   targetAsset: number;              // FIRE目標資産額（万円）手動入力
   postFireMonthlyInvestment: number;     // FIRE後〜年金受給前の毎月積立（万円）
-  postPensionMonthlyWithdrawal: number;  // 年金受給後の毎月取り崩し額（万円）
   postPensionMonthlyInvestment: number;  // 年金受給後の毎月積立（万円）
   startWorkAge: number;             // 就労開始年齢
   averageAnnualSalary: number;      // 厚生年金計算用 平均年収（万円/年）
@@ -53,6 +51,7 @@ export interface FireResult {
   fireAsset: number | null;
   assetLifeAge: number | null;
   targetAsset: number;
+  withdrawalRate: number;  // 自動計算 annualExpenses / targetAsset * 100
   snapshots: YearlySnapshot[];
   pension: PensionInfo;
 }
@@ -61,12 +60,11 @@ export interface FireResult {
 // 出典: 厚生労働省「老齢年金の繰下げ受給と繰上げ受給」
 //   繰り上げ: -0.4%/月（60〜64歳）最大 -24%  ※1962年4月2日以降生まれ
 //   繰り下げ: +0.7%/月（66〜75歳）最大 +84%
-//   https://www.mhlw.go.jp/stf/nenkin_shikumi_011.html
-export const DC_AVAILABLE_AGE = 60;   // DC引き出し可能年齢
+export const DC_AVAILABLE_AGE = 60;   // DC・iDeCo引き出し可能年齢
 export const PENSION_MIN_AGE = 60;
 export const PENSION_MAX_AGE = 75;
 export const PENSION_BASE_AGE = 65;
-export const PENSION_EARLY_RATE  = 0.004; // 0.4%/月
+export const PENSION_EARLY_RATE    = 0.004; // 0.4%/月
 export const PENSION_DEFERRED_RATE = 0.007; // 0.7%/月
 
 export function calcPensionAdjustmentRate(pensionStartAge: number): number {
@@ -104,10 +102,10 @@ function calcPensionInternal(
   const totalAnnualPension = baseAnnualPension * adjustmentRate;
 
   return {
-    basicPension:       basicPensionBase    * adjustmentRate,
-    employeePension:    employeePensionBase * adjustmentRate,
+    basicPension:    basicPensionBase    * adjustmentRate,
+    employeePension: employeePensionBase * adjustmentRate,
     totalAnnualPension,
-    monthlyPension:     totalAnnualPension / 12,
+    monthlyPension:  totalAnnualPension / 12,
     baseAnnualPension,
     adjustmentRate,
     pensionStartAge,
@@ -116,6 +114,19 @@ function calcPensionInternal(
 }
 
 // ── FIRE計算 ──────────────────────────────────────────────────────────
+//
+// 設計方針:
+//   積立フェーズ: 現在〜FIRE達成まで。投資・DC・iDeCoを複利積立。現金は固定。
+//   FIRE判定: 投資 + 現金 + DC + iDeCo の合計が targetAsset に到達した年齢。
+//
+//   取り崩しフェーズ:
+//     流動資産 = 投資 + 現金（60歳未満）/ 投資 + 現金 + DC + iDeCo（60歳以降）
+//     月次取り崩し額:
+//       年金受給前: annualExpenses / 12（全額を資産から）
+//       年金受給後: max(0, annualExpenses/12 − 年金月額)（年金で差額充当）
+//     取り崩しは流動資産を比率按分。
+//     FIRE後の積立（postFireMonthlyInvestment 等）は inv に加算。
+//
 export function calcFire(input: FireInput): FireResult {
   const {
     currentAge,
@@ -130,7 +141,6 @@ export function calcFire(input: FireInput): FireResult {
     annualExpenses,
     targetAsset,
     postFireMonthlyInvestment,
-    postPensionMonthlyWithdrawal,
     postPensionMonthlyInvestment,
     startWorkAge,
     averageAnnualSalary,
@@ -152,9 +162,7 @@ export function calcFire(input: FireInput): FireResult {
   }
 
   // ── Phase 1: fireAge を特定 ───────────────────────────────────────
-  // FIRE判定は「流動資産 + DC」ベースで行う。
-  // iDeCo は60歳まで引き出し不可のため判定に含めない。
-  // 含めると iDeCo 積立を増やすほど FIRE が早まり流動資産が不足するため。
+  // FIRE判定: 投資 + 現金 + DC + iDeCo の合計が targetAsset 以上になった年齢
   let fireAge: number | null = null;
   let fireAsset: number | null = null;
   {
@@ -173,11 +181,10 @@ export function calcFire(input: FireInput): FireResult {
         dc    *= 1 + monthlyRate;
         ideco *= 1 + monthlyRate;
       }
-      // iDeCo を除いた合計で FIRE 判定（iDeCo は60歳以降の上乗せとして扱う）
-      const fireDetectionTotal = inv + cash + dc;
-      if (fireDetectionTotal >= targetAsset && fireAge === null) {
+      const total = inv + cash + dc + ideco;
+      if (total >= targetAsset && fireAge === null) {
         fireAge   = yr + 1;
-        fireAsset = inv + cash + dc + ideco; // 実際の総資産はiDeCoも含める
+        fireAsset = total;
       }
     }
   }
@@ -200,7 +207,7 @@ export function calcFire(input: FireInput): FireResult {
 
   for (let yr = currentAge; yr < simEndAge; yr++) {
     if (!inWithdrawal) {
-      // 積立フェーズ
+      // ── 積立フェーズ ──
       const contrib = getMonthlyContribution(yr);
       for (let m = 0; m < 12; m++) {
         inv   += contrib;
@@ -209,6 +216,7 @@ export function calcFire(input: FireInput): FireResult {
         inv   *= 1 + monthlyRate;
         dc    *= 1 + monthlyRate;
         ideco *= 1 + monthlyRate;
+        // cash は固定（利回りなし）
       }
       const total = inv + cash + dc + ideco;
       if (fireAge !== null && yr + 1 >= fireAge) inWithdrawal = true;
@@ -220,42 +228,40 @@ export function calcFire(input: FireInput): FireResult {
         isFire: inWithdrawal, isWithdrawal: inWithdrawal,
       });
     } else {
-      // 取り崩しフェーズ
+      // ── 取り崩しフェーズ ──
       const ageAtEnd = yr + 1;
-      const pensionActive = ageAtEnd >= pension.pensionStartAge;
+      const pensionActive  = ageAtEnd >= pension.pensionStartAge;
+      const dcUnlocked     = ageAtEnd >= DC_AVAILABLE_AGE;
+
+      // FIRE後の積立（副業収入など）
       const monthlyContrib = pensionActive
         ? postPensionMonthlyInvestment
         : postFireMonthlyInvestment;
 
-      // 年金受給後: 年金収入はinvに加算（取り崩しとは分離）
-      const monthlyPensionIncome = pensionActive ? pension.monthlyPension : 0;
-
-      // 取り崩し額: 年金受給前=年間生活費/12、年金受給後=ユーザー指定額
+      // 月次取り崩し額:
+      //   年金受給前: 生活費/12（全額を資産から）
+      //   年金受給後: max(0, 生活費/12 − 年金月額)（年金で差額を充当し残りを資産から）
       const monthlyWithdrawal = pensionActive
-        ? postPensionMonthlyWithdrawal
+        ? Math.max(0, annualExpenses / 12 - pension.monthlyPension)
         : annualExpenses / 12;
 
-      // DC・iDeCo は60歳から引き出し可能
-      const lockedUnlocked = ageAtEnd >= DC_AVAILABLE_AGE;
-
       for (let m = 0; m < 12; m++) {
-        // 積立 + 年金収入（資産として受け取る）
-        inv   += monthlyContrib + monthlyPensionIncome;
+        // 積立を投資に加算 → 複利成長（現金は固定）
+        inv   += monthlyContrib;
         inv   *= 1 + monthlyRate;
         dc    *= 1 + monthlyRate;
         ideco *= 1 + monthlyRate;
 
-        // 引き出し可能な資産（DC・iDeCoは60歳未満は除外）
-        const liquidNow =
-          inv + cash + (lockedUnlocked ? dc + ideco : 0);
+        // 流動資産: 60歳未満はDC・iDeCo除外
+        const liquidNow = inv + cash + (dcUnlocked ? dc + ideco : 0);
 
-        // 資産から取り崩す（年金は別受け取り済みのため直接控除しない）
+        // 流動資産から比率按分で取り崩し
         if (liquidNow > 0 && monthlyWithdrawal > 0) {
           const withdrawal = Math.min(liquidNow, monthlyWithdrawal);
-          const ratio = withdrawal / liquidNow;
+          const ratio      = withdrawal / liquidNow;
           inv  -= inv  * ratio;
           cash -= cash * ratio;
-          if (lockedUnlocked) {
+          if (dcUnlocked) {
             dc    -= dc    * ratio;
             ideco -= ideco * ratio;
           }
@@ -271,56 +277,20 @@ export function calcFire(input: FireInput): FireResult {
 
       snapshots.push({
         age: yr + 1,
-        totalAsset:      Math.max(0, total),
-        investmentPart:  Math.max(0, inv),
-        cashPart:        Math.max(0, cash),
-        dcPart:          Math.max(0, dc),
-        idecoPart:       Math.max(0, ideco),
+        totalAsset:     Math.max(0, total),
+        investmentPart: Math.max(0, inv),
+        cashPart:       Math.max(0, cash),
+        dcPart:         Math.max(0, dc),
+        idecoPart:      Math.max(0, ideco),
         accumulatedPart: 0,
         isFire: true, isWithdrawal: true,
       });
     }
   }
 
-  return { fireAge, fireAsset, assetLifeAge, targetAsset, snapshots, pension };
-}
+  const withdrawalRate = targetAsset > 0 ? (annualExpenses / targetAsset) * 100 : 0;
 
-// ── Die with Zero：100歳で資産ゼロになる必要FIRE目標資産額 ──────────────────────
-// シミュレーションベースの二分探索で算出。
-// targetAsset を変化させながら calcFire を繰り返し呼び出し、
-// 「100歳時点で資産が残る（≥0）」になる最小の targetAsset を求める。
-// DC60歳ロック・比例取り崩し・積立ステップ・年金など
-// すべての入力パラメータを正確に反映する。
-//
-// FIRE年齢は離散（年単位）なため「ちょうど0」には一般にならない。
-// ここでは「100歳まで資産が尽きない最小の目標額」を返す。
-// hi はクロスオーバーの直上に収束するため Math.ceil で100万単位に繰り上げ、
-// 確実に100歳まで資産が持つ目標額を返す。
-export function calcDieWithZeroTarget(input: FireInput): number {
-  const TARGET_AGE = 100;
-
-  let lo = 0;
-  let hi = 1_000_000; // 10億円 上限
-
-  for (let i = 0; i < 52; i++) {
-    const mid = (lo + hi) / 2;
-    const result = calcFire({ ...input, targetAsset: mid });
-    const snap = result.snapshots.find((s) => s.age === TARGET_AGE);
-    // snap が存在しない場合（simEndAge < 100 等）は 0 として扱う
-    const assetAt100 = snap?.totalAsset ?? 0;
-
-    if (assetAt100 > 0) {
-      // 100歳時点でプラス → 目標を下げてFIREを早める（取り崩し期間を延ばす）
-      hi = mid;
-    } else {
-      // 100歳時点でゼロ以下 → 目標を上げてFIREを遅らせる（取り崩し元本を増やす）
-      lo = mid;
-    }
-  }
-
-  // hi はクロスオーバー直上に収束している。
-  // Math.ceil で100万単位に繰り上げることで、確実に100歳超まで資産が持つ最小目標額を返す。
-  return Math.ceil(hi / 100) * 100;
+  return { fireAge, fireAsset, assetLifeAge, targetAsset, withdrawalRate, snapshots, pension };
 }
 
 export function formatAsset(man: number): string {

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { FireInput, calcFire, calcDieWithZeroTarget } from './utils/fireCalc';
+import { FireInput, calcFire } from './utils/fireCalc';
 import { useFireSettings } from './hooks/useFireSettings';
 import FireBanner from './components/FireBanner';
 import InputPanel from './components/InputPanel';
@@ -21,11 +21,9 @@ const DEFAULT_INPUT: FireInput = {
     { startAge: 30, endAge: 35, monthlyAmount: 5 },
     { startAge: 35, endAge: null, monthlyAmount: 10 },
   ],
-  withdrawalRate: 4,
   annualExpenses: 300,
   targetAsset: 7500,
   postFireMonthlyInvestment: 0,
-  postPensionMonthlyWithdrawal: 25,  // annualExpenses(300) / 12 と同値
   postPensionMonthlyInvestment: 0,
   startWorkAge: 22,
   averageAnnualSalary: 500,
@@ -79,9 +77,6 @@ export default function App() {
   const totalSavings =
     input.currentInvestment + input.currentCash + input.dcCurrentAmount + input.idecoCurrentAmount;
 
-  // Die with Zero: 全入力パラメータを考慮したシミュレーションで100歳ゼロになるFIRE目標資産
-  const dieWithZeroTarget = useMemo(() => calcDieWithZeroTarget(input), [input]);
-
   return (
     <div className="app">
       <header className="app-header">
@@ -102,7 +97,7 @@ export default function App() {
 
       <main className="app-main">
         <div className="left-col">
-          <InputPanel input={input} isSingle={isSingle} onChange={handleChange} dieWithZeroTarget={dieWithZeroTarget} />
+          <InputPanel input={input} isSingle={isSingle} onChange={handleChange} />
           <HensachiCard
             savingsMan={totalSavings}
             age={input.currentAge}
@@ -116,7 +111,7 @@ export default function App() {
             fireAge={result.fireAge}
             fireAsset={result.fireAsset}
             startWorkAge={input.startWorkAge}
-            withdrawalRate={input.withdrawalRate}
+            annualExpenses={input.annualExpenses}
           />
         </div>
       </main>

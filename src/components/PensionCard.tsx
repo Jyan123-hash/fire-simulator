@@ -5,21 +5,23 @@ interface Props {
   fireAge: number | null;
   fireAsset: number | null;
   startWorkAge: number;
-  withdrawalRate: number;
+  annualExpenses: number;
 }
 
-export default function PensionCard({ pension, fireAge, fireAsset, startWorkAge, withdrawalRate }: Props) {
+export default function PensionCard({ pension, fireAge, fireAsset: _fireAsset, startWorkAge, annualExpenses }: Props) {
   const workYears = fireAge !== null ? Math.max(0, Math.min(fireAge, 65) - startWorkAge) : 0;
-  // FIRE時の資産 × 取り崩し率が年間生活費の基準
-  const annualFromAssets = fireAsset !== null ? fireAsset * (withdrawalRate / 100) : 0;
-  const netWithdrawal = Math.max(0, annualFromAssets - pension.totalAnnualPension);
 
-  const adjPct = ((pension.adjustmentRate - 1) * 100);
-  const isEarly    = pension.pensionStartAge < PENSION_BASE_AGE;
-  const isDeferred = pension.pensionStartAge > PENSION_BASE_AGE;
-  const adjColor   = isEarly ? '#ff7777' : isDeferred ? '#44cc88' : '#8892a8';
-  const adjSign    = adjPct > 0 ? '+' : '';
-  const adjLabel   = isEarly
+  // 年金受給後に資産から出す月次取り崩し額
+  const monthlyFromAssets = Math.max(0, annualExpenses / 12 - pension.monthlyPension);
+  const annualFromAssets  = monthlyFromAssets * 12;
+  const pensionCoversAll  = pension.totalAnnualPension >= annualExpenses;
+
+  const adjPct      = (pension.adjustmentRate - 1) * 100;
+  const isEarly     = pension.pensionStartAge < PENSION_BASE_AGE;
+  const isDeferred  = pension.pensionStartAge > PENSION_BASE_AGE;
+  const adjColor    = isEarly ? '#ff7777' : isDeferred ? '#44cc88' : '#8892a8';
+  const adjSign     = adjPct > 0 ? '+' : '';
+  const adjLabel    = isEarly
     ? `繰り上げ受給（▼${Math.abs(adjPct).toFixed(1)}%）`
     : isDeferred
     ? `繰り下げ受給（▲${adjPct.toFixed(1)}%）`
@@ -86,13 +88,13 @@ export default function PensionCard({ pension, fireAge, fireAsset, startWorkAge,
 
       <div className="pension-note">
         <span className="pension-note__label">
-          FIRE時 {withdrawalRate}%取り崩し（年{annualFromAssets.toFixed(0)}万）のうち<br />
+          年間生活費 {annualExpenses}万円のうち<br />
           {pension.pensionStartAge}歳以降に資産から出す額
         </span>
         <span className="pension-note__value">
-          {netWithdrawal > 0
-            ? `${netWithdrawal.toFixed(0)}万円/年（月 ${(netWithdrawal / 12).toFixed(1)}万円）`
-            : '年金で全額カバー ✨'}
+          {pensionCoversAll
+            ? '年金で全額カバー ✨'
+            : `${annualFromAssets.toFixed(0)}万円/年（月 ${monthlyFromAssets.toFixed(1)}万円）`}
         </span>
       </div>
 
