@@ -17,8 +17,9 @@ export interface FireInput {
   withdrawalRate: number;           // % ← 推奨FIRE目標額の表示計算のみ
   annualExpenses: number;           // 万円/年
   targetAsset: number;              // FIRE目標資産額（万円）手動入力
-  postFireMonthlyInvestment: number;    // FIRE後〜年金受給前の毎月積立（万円）
-  postPensionMonthlyInvestment: number; // 年金受給後の毎月積立（万円）
+  postFireMonthlyInvestment: number;     // FIRE後〜年金受給前の毎月積立（万円）
+  postPensionMonthlyWithdrawal: number;  // 年金受給後の毎月取り崩し額（万円）
+  postPensionMonthlyInvestment: number;  // 年金受給後の毎月積立（万円）
   startWorkAge: number;             // 就労開始年齢
   averageAnnualSalary: number;      // 厚生年金計算用 平均年収（万円/年）
   pensionStartAge: number;          // 年金受給開始年齢（60〜75）
@@ -129,6 +130,7 @@ export function calcFire(input: FireInput): FireResult {
     annualExpenses,
     targetAsset,
     postFireMonthlyInvestment,
+    postPensionMonthlyWithdrawal,
     postPensionMonthlyInvestment,
     startWorkAge,
     averageAnnualSalary,
@@ -221,16 +223,24 @@ export function calcFire(input: FireInput): FireResult {
       // 取り崩しフェーズ
       const ageAtEnd = yr + 1;
       const pensionActive = ageAtEnd >= pension.pensionStartAge;
-      const monthlyPensionIncome = pensionActive ? pension.monthlyPension : 0;
       const monthlyContrib = pensionActive
         ? postPensionMonthlyInvestment
         : postFireMonthlyInvestment;
+
+      // 年金受給後: 年金収入はinvに加算（取り崩しとは分離）
+      const monthlyPensionIncome = pensionActive ? pension.monthlyPension : 0;
+
+      // 取り崩し額: 年金受給前=年間生活費/12、年金受給後=ユーザー指定額
+      const monthlyWithdrawal = pensionActive
+        ? postPensionMonthlyWithdrawal
+        : annualExpenses / 12;
 
       // DC・iDeCo は60歳から引き出し可能
       const lockedUnlocked = ageAtEnd >= DC_AVAILABLE_AGE;
 
       for (let m = 0; m < 12; m++) {
-        inv   += monthlyContrib;
+        // 積立 + 年金収入（資産として受け取る）
+        inv   += monthlyContrib + monthlyPensionIncome;
         inv   *= 1 + monthlyRate;
         dc    *= 1 + monthlyRate;
         ideco *= 1 + monthlyRate;
@@ -239,11 +249,9 @@ export function calcFire(input: FireInput): FireResult {
         const liquidNow =
           inv + cash + (lockedUnlocked ? dc + ideco : 0);
 
-        // 取り崩し額 = 年間生活費 ÷ 12 - 年金収入
-        const monthlyFromAssets = Math.max(0, annualExpenses / 12 - monthlyPensionIncome);
-
-        if (liquidNow > 0 && monthlyFromAssets > 0) {
-          const withdrawal = Math.min(liquidNow, monthlyFromAssets);
+        // 資産から取り崩す（年金は別受け取り済みのため直接控除しない）
+        if (liquidNow > 0 && monthlyWithdrawal > 0) {
+          const withdrawal = Math.min(liquidNow, monthlyWithdrawal);
           const ratio = withdrawal / liquidNow;
           inv  -= inv  * ratio;
           cash -= cash * ratio;

@@ -25,6 +25,7 @@ const DEFAULT_INPUT: FireInput = {
   annualExpenses: 300,
   targetAsset: 7500,
   postFireMonthlyInvestment: 0,
+  postPensionMonthlyWithdrawal: 25,  // annualExpenses(300) / 12 と同値
   postPensionMonthlyInvestment: 0,
   startWorkAge: 22,
   averageAnnualSalary: 500,

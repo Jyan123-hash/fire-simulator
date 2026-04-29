@@ -345,6 +345,13 @@ export default function InputPanel({ input, isSingle, onChange, dieWithZeroTarge
         />
 
         <NumInput
+          label="年金受給後の取り崩し"
+          value={input.postPensionMonthlyWithdrawal}
+          onChange={(v) => update({ postPensionMonthlyWithdrawal: v })}
+          min={0} step={0.5} unit="万円/月"
+        />
+
+        <NumInput
           label="年金受給後の積立"
           value={input.postPensionMonthlyInvestment}
           onChange={(v) => update({ postPensionMonthlyInvestment: v })}
