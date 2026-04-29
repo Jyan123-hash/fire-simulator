@@ -11,6 +11,7 @@ interface Props {
   input: FireInput;
   isSingle: boolean;
   onChange: (input: FireInput, isSingle: boolean) => void;
+  assetReachedAge?: number | null;
 }
 
 function NumInput({
@@ -61,7 +62,7 @@ function pensionAdjustLabel(age: number): { text: string; color: string } {
   return { text: '基準（100%）', color: '#8892a8' };
 }
 
-export default function InputPanel({ input, isSingle, onChange }: Props) {
+export default function InputPanel({ input, isSingle, onChange, assetReachedAge }: Props) {
   const update = (partial: Partial<FireInput>, newIsSingle?: boolean) => {
     onChange({ ...input, ...partial }, newIsSingle ?? isSingle);
   };
@@ -279,6 +280,28 @@ export default function InputPanel({ input, isSingle, onChange }: Props) {
           onChange={(v) => update({ annualExpenses: v })}
           min={0} step={10} unit="万円/年"
         />
+
+        <NumInput
+          label="FIRE開始希望年齢"
+          value={input.targetFireAge}
+          onChange={(v) => update({ targetFireAge: v })}
+          min={input.currentAge} max={75} unit="歳"
+        />
+
+        {/* FIRE開始希望年齢時点で目標資産未達の場合の警告 */}
+        {assetReachedAge !== undefined && assetReachedAge !== null && assetReachedAge > input.targetFireAge && (
+          <div className="target-warning">
+            ⚠️ {input.targetFireAge}歳時点では目標資産（{input.targetAsset.toLocaleString()}万円）に届きません。
+            <br />
+            目標到達は <strong>{assetReachedAge}歳</strong> になります。
+          </div>
+        )}
+        {assetReachedAge === null && (
+          <div className="target-warning">
+            ⚠️ 現状のペースでは目標資産（{input.targetAsset.toLocaleString()}万円）に到達できません。
+            積立額や年利を見直してください。
+          </div>
+        )}
 
         <div className="input-row">
           <label className="input-label">FIRE目標資産</label>

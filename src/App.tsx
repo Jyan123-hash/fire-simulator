@@ -23,6 +23,7 @@ const DEFAULT_INPUT: FireInput = {
   ],
   annualExpenses: 300,
   targetAsset: 7500,
+  targetFireAge: 50,
   postFireMonthlyInvestment: 0,
   postPensionMonthlyInvestment: 0,
   startWorkAge: 22,
@@ -97,7 +98,12 @@ export default function App() {
 
       <main className="app-main">
         <div className="left-col">
-          <InputPanel input={input} isSingle={isSingle} onChange={handleChange} />
+          <InputPanel
+            input={input}
+            isSingle={isSingle}
+            onChange={handleChange}
+            assetReachedAge={result.assetReachedAge}
+          />
           <HensachiCard
             savingsMan={totalSavings}
             age={input.currentAge}

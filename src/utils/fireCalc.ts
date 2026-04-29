@@ -16,6 +16,7 @@ export interface FireInput {
   steps: AccumulationStep[];
   annualExpenses: number;           // 年間生活費（万円）固定
   targetAsset: number;              // FIRE目標資産額（万円）手動入力
+  targetFireAge: number;            // FIRE開始希望年齢（手動入力）
   postFireMonthlyInvestment: number;     // FIRE後〜年金受給前の毎月積立（万円）
   postPensionMonthlyInvestment: number;  // 年金受給後の毎月積立（万円）
   startWorkAge: number;             // 就労開始年齢
@@ -47,11 +48,12 @@ export interface YearlySnapshot {
 }
 
 export interface FireResult {
-  fireAge: number | null;
-  fireAsset: number | null;
+  fireAge: number | null;          // 実際のFIRE開始年齢 = max(assetReachedAge, targetFireAge)
+  fireAsset: number | null;        // FIRE開始時点の資産
+  assetReachedAge: number | null;  // 目標資産に到達する年齢（targetFireAge無視）
   assetLifeAge: number | null;
   targetAsset: number;
-  withdrawalRate: number;  // 自動計算 annualExpenses / targetAsset * 100
+  withdrawalRate: number;          // 自動計算 annualExpenses / targetAsset * 100
   snapshots: YearlySnapshot[];
   pension: PensionInfo;
 }
@@ -140,6 +142,7 @@ export function calcFire(input: FireInput): FireResult {
     steps,
     annualExpenses,
     targetAsset,
+    targetFireAge,
     postFireMonthlyInvestment,
     postPensionMonthlyInvestment,
     startWorkAge,
@@ -161,10 +164,9 @@ export function calcFire(input: FireInput): FireResult {
     return amount;
   }
 
-  // ── Phase 1: fireAge を特定 ───────────────────────────────────────
-  // FIRE判定: 投資 + 現金 + DC + iDeCo の合計が targetAsset 以上になった年齢
-  let fireAge: number | null = null;
-  let fireAsset: number | null = null;
+  // ── Phase 1: 目標資産到達年齢を特定 ───────────────────────────────
+  // 投資 + 現金 + DC + iDeCo の合計が targetAsset 以上になった年齢
+  let assetReachedAge: number | null = null;
   {
     let inv   = currentInvestment;
     const cash = currentCash;
@@ -182,12 +184,18 @@ export function calcFire(input: FireInput): FireResult {
         ideco *= 1 + monthlyRate;
       }
       const total = inv + cash + dc + ideco;
-      if (total >= targetAsset && fireAge === null) {
-        fireAge   = yr + 1;
-        fireAsset = total;
+      if (total >= targetAsset && assetReachedAge === null) {
+        assetReachedAge = yr + 1;
       }
     }
   }
+
+  // 実際のFIRE開始年齢 = max(目標資産到達年齢, 指定FIRE年齢)
+  // ・目標未達なら fireAge = null（永久にFIREできない）
+  // ・目標達成済みなら指定年齢まで待機（早期達成しても指定年齢でFIRE）
+  const fireAge: number | null =
+    assetReachedAge !== null ? Math.max(assetReachedAge, targetFireAge) : null;
+  let fireAsset: number | null = null;
 
   // ── 年金計算（fireAge確定後） ─────────────────────────────────────
   const effectiveFireAge = fireAge ?? simEndAge;
@@ -219,7 +227,10 @@ export function calcFire(input: FireInput): FireResult {
         // cash は固定（利回りなし）
       }
       const total = inv + cash + dc + ideco;
-      if (fireAge !== null && yr + 1 >= fireAge) inWithdrawal = true;
+      if (fireAge !== null && yr + 1 >= fireAge) {
+        if (!inWithdrawal) fireAsset = total; // FIRE開始時点の資産を記録
+        inWithdrawal = true;
+      }
 
       snapshots.push({
         age: yr + 1, totalAsset: total,
@@ -290,7 +301,10 @@ export function calcFire(input: FireInput): FireResult {
 
   const withdrawalRate = targetAsset > 0 ? (annualExpenses / targetAsset) * 100 : 0;
 
-  return { fireAge, fireAsset, assetLifeAge, targetAsset, withdrawalRate, snapshots, pension };
+  return {
+    fireAge, fireAsset, assetReachedAge, assetLifeAge,
+    targetAsset, withdrawalRate, snapshots, pension,
+  };
 }
 
 export function formatAsset(man: number): string {
