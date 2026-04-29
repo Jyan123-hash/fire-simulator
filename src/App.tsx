@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { FireInput, calcFire } from './utils/fireCalc';
 import { useFireSettings } from './hooks/useFireSettings';
 import FireBanner from './components/FireBanner';
@@ -126,6 +127,7 @@ export default function App() {
         <p>※ 本シミュレーターは教育目的です。実際の投資判断・年金試算は専門家にご相談ください。</p>
         <p>データ出典：J-FLEC 家計の金融行動に関する世論調査（2024年）</p>
       </footer>
+      <Analytics />
     </div>
   );
 }
