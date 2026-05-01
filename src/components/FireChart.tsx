@@ -100,6 +100,12 @@ export default function FireChart({ result }: Props) {
   const yMax = Math.ceil(Math.min(datMax, Math.max(targetAsset * 1.3, 1000)) / 1000) * 1000;
   const yTicks = Array.from({ length: yMax / 1000 + 1 }, (_, i) => i * 1000);
 
+  // X軸: 5歳刻みのtick（5の倍数のみ表示）
+  const firstAge = snapshots[0].age;
+  const xStart = Math.ceil(firstAge / 5) * 5;
+  const xTicks: number[] = [];
+  for (let a = xStart; a <= lastAge; a += 5) xTicks.push(a);
+
   return (
     <div className="chart-wrapper">
       <h3 className="section-title">資産推移グラフ</h3>
@@ -139,6 +145,9 @@ export default function FireChart({ result }: Props) {
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
           <XAxis
             dataKey="age"
+            type="number"
+            domain={[firstAge, lastAge]}
+            ticks={xTicks}
             stroke="#aaa"
             tick={{ fill: '#aaa', fontSize: 12 }}
             tickFormatter={(v) => `${v}歳`}
