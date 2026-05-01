@@ -106,7 +106,7 @@ export default function FireChart({ result }: Props) {
       <ResponsiveContainer width="100%" height={400}>
         <AreaChart
           data={snapshots}
-          margin={{ top: 36, right: 20, left: 10, bottom: 10 }}
+          margin={{ top: 56, right: 20, left: 10, bottom: 10 }}
         >
           <defs>
             {/* 現金（元本のみ） */}
@@ -193,7 +193,7 @@ export default function FireChart({ result }: Props) {
             </ReferenceLine>
           )}
 
-          {/* DC・iDeCo解禁ライン */}
+          {/* DC・iDeCo解禁ライン（下段） */}
           {fireAge !== null && DC_AVAILABLE_AGE > fireAge && DC_AVAILABLE_AGE <= lastAge && (
             <ReferenceLine
               x={DC_AVAILABLE_AGE}
@@ -204,13 +204,14 @@ export default function FireChart({ result }: Props) {
               <Label
                 value="🔓 DC・iDeCo解禁"
                 position="top"
+                offset={5}
                 fill="#ffaa00"
                 fontSize={11}
               />
             </ReferenceLine>
           )}
 
-          {/* 年金受給開始ライン */}
+          {/* 年金受給開始ライン（上段にずらす） */}
           {result.pension.pensionStartAge <= lastAge && (
             <ReferenceLine
               x={result.pension.pensionStartAge}
@@ -219,8 +220,9 @@ export default function FireChart({ result }: Props) {
               strokeWidth={1.5}
             >
               <Label
-                value={`💰 年金開始 (${result.pension.monthlyPension.toFixed(1)}万円/月)`}
+                value={`💰 年金開始 (${result.pension.monthlyPension.toFixed(1)}万/月)`}
                 position="top"
+                offset={24}
                 fill="#44bbdd"
                 fontSize={11}
               />
