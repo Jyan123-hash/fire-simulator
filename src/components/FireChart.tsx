@@ -23,7 +23,12 @@ interface TooltipPayload {
   cashPart: number;
   dcPart: number;
   idecoPart: number;
-  accumulatedPart: number;
+  investmentPrincipal: number;
+  investmentGains: number;
+  dcPrincipal: number;
+  dcGains: number;
+  idecoPrincipal: number;
+  idecoGains: number;
   totalAsset: number;
 }
 
@@ -38,25 +43,42 @@ function CustomTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const d = payload[0].payload;
+  const totalPrincipal = d.investmentPrincipal + d.cashPart + d.dcPrincipal + d.idecoPrincipal;
+  const totalGains     = d.investmentGains + d.dcGains + d.idecoGains;
   return (
     <div className="chart-tooltip">
       <div className="tooltip-age">{label}歳</div>
       <div className="tooltip-total">総資産：{formatAsset(d.totalAsset)}</div>
+      <div className="tooltip-row" style={{ borderTop: '1px solid #444', marginTop: 4, paddingTop: 4 }}>
+        元本合計：{formatAsset(totalPrincipal)}
+      </div>
       <div className="tooltip-row">
+        運用益合計：{formatAsset(totalGains)}
+      </div>
+      <div className="tooltip-row" style={{ borderTop: '1px solid #444', marginTop: 4, paddingTop: 4 }}>
         <span className="dot" style={{ background: '#aaaacc' }} />
         現金：{formatAsset(d.cashPart)}
       </div>
       <div className="tooltip-row">
-        <span className="dot" style={{ background: '#ffaa00' }} />
+        <span className="dot" style={{ background: '#cc8800' }} />
         DC：{formatAsset(d.dcPart)}
+        <span style={{ color: '#888', marginLeft: 6, fontSize: '0.78rem' }}>
+          （元本{formatAsset(d.dcPrincipal)} / 運用益{formatAsset(d.dcGains)}）
+        </span>
       </div>
       <div className="tooltip-row">
         <span className="dot" style={{ background: '#44cc88' }} />
         iDeCo：{formatAsset(d.idecoPart)}
+        <span style={{ color: '#888', marginLeft: 6, fontSize: '0.78rem' }}>
+          （元本{formatAsset(d.idecoPrincipal)} / 運用益{formatAsset(d.idecoGains)}）
+        </span>
       </div>
       <div className="tooltip-row">
-        <span className="dot" style={{ background: '#4488ff' }} />
+        <span className="dot" style={{ background: '#2266cc' }} />
         通常投資：{formatAsset(d.investmentPart)}
+        <span style={{ color: '#888', marginLeft: 6, fontSize: '0.78rem' }}>
+          （元本{formatAsset(d.investmentPrincipal)} / 運用益{formatAsset(d.investmentGains)}）
+        </span>
       </div>
     </div>
   );
@@ -71,11 +93,9 @@ export default function FireChart({ result }: Props) {
   const fireStartSnap = snapshots.find((s) => s.isWithdrawal);
   const fireStartAge = fireStartSnap?.age ?? null;
 
-  // iDeCo/DC が実際にデータを持つ場合のみ描画（0ならスタックに含めない）
   const hasIdeco = snapshots.some((s) => s.idecoPart > 0);
   const hasDc    = snapshots.some((s) => s.dcPart > 0);
 
-  // y軸：目標資産の1.3倍でキャップ、1000万刻みのtick生成
   const datMax = Math.max(...snapshots.map((s) => s.totalAsset));
   const yMax = Math.ceil(Math.min(datMax, Math.max(targetAsset * 1.3, 1000)) / 1000) * 1000;
   const yTicks = Array.from({ length: yMax / 1000 + 1 }, (_, i) => i * 1000);
@@ -89,18 +109,30 @@ export default function FireChart({ result }: Props) {
           margin={{ top: 36, right: 20, left: 10, bottom: 10 }}
         >
           <defs>
+            {/* 現金（元本のみ） */}
             <linearGradient id="gradCash" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%"  stopColor="#aaaacc" stopOpacity={0.7} />
               <stop offset="95%" stopColor="#aaaacc" stopOpacity={0.2} />
             </linearGradient>
-            <linearGradient id="gradDC" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#ffaa00" stopOpacity={0.85} />
-              <stop offset="95%" stopColor="#ffaa00" stopOpacity={0.2} />
+            {/* DC 元本（濃いオレンジ） */}
+            <linearGradient id="gradDcPrincipal" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor="#cc8800" stopOpacity={0.95} />
+              <stop offset="95%" stopColor="#cc8800" stopOpacity={0.4} />
             </linearGradient>
-
-            <linearGradient id="gradInvestment" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#4488ff" stopOpacity={0.85} />
-              <stop offset="95%" stopColor="#4488ff" stopOpacity={0.2} />
+            {/* DC 運用益（薄いオレンジ） */}
+            <linearGradient id="gradDcGains" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor="#ffcc66" stopOpacity={0.65} />
+              <stop offset="95%" stopColor="#ffcc66" stopOpacity={0.15} />
+            </linearGradient>
+            {/* 通常投資 元本（濃い青） */}
+            <linearGradient id="gradInvPrincipal" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor="#2266cc" stopOpacity={0.95} />
+              <stop offset="95%" stopColor="#2266cc" stopOpacity={0.4} />
+            </linearGradient>
+            {/* 通常投資 運用益（薄い青） */}
+            <linearGradient id="gradInvGains" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor="#88bbff" stopOpacity={0.65} />
+              <stop offset="95%" stopColor="#88bbff" stopOpacity={0.15} />
             </linearGradient>
           </defs>
 
@@ -161,7 +193,7 @@ export default function FireChart({ result }: Props) {
             </ReferenceLine>
           )}
 
-          {/* DC・iDeCo解禁ライン（FIRE後かつ60歳以降の場合のみ表示） */}
+          {/* DC・iDeCo解禁ライン */}
           {fireAge !== null && DC_AVAILABLE_AGE > fireAge && DC_AVAILABLE_AGE <= lastAge && (
             <ReferenceLine
               x={DC_AVAILABLE_AGE}
@@ -202,7 +234,9 @@ export default function FireChart({ result }: Props) {
             </ReferenceLine>
           )}
 
-          {/* スタック順（下から）: 現金 → DC → iDeCo → 通常投資 */}
+          {/* スタック順（下から）:
+              現金 → DC元本 → DC運用益 → 通常投資元本 → 通常投資運用益
+              濃い色＝元本、薄い色＝複利で増えた運用益 */}
           <Area
             type="monotone"
             dataKey="cashPart"
@@ -215,15 +249,44 @@ export default function FireChart({ result }: Props) {
           {hasDc && (
             <Area
               type="monotone"
-              dataKey="dcPart"
+              dataKey="dcPrincipal"
               stackId="1"
-              stroke="#ffaa00"
-              strokeWidth={1.5}
-              fill="url(#gradDC)"
-              name="DC"
+              stroke="#cc8800"
+              strokeWidth={1}
+              fill="url(#gradDcPrincipal)"
+              name="DC元本"
             />
           )}
-          {/* iDeCo は独立した Line として描画（スタックから外して絶対値で表示） */}
+          {hasDc && (
+            <Area
+              type="monotone"
+              dataKey="dcGains"
+              stackId="1"
+              stroke="#ffcc66"
+              strokeWidth={1}
+              fill="url(#gradDcGains)"
+              name="DC運用益"
+            />
+          )}
+          <Area
+            type="monotone"
+            dataKey="investmentPrincipal"
+            stackId="1"
+            stroke="#2266cc"
+            strokeWidth={1}
+            fill="url(#gradInvPrincipal)"
+            name="投資元本"
+          />
+          <Area
+            type="monotone"
+            dataKey="investmentGains"
+            stackId="1"
+            stroke="#88bbff"
+            strokeWidth={1}
+            fill="url(#gradInvGains)"
+            name="投資運用益"
+          />
+          {/* iDeCo は独立した Line として描画 */}
           {hasIdeco && (
             <Line
               type="monotone"
@@ -234,15 +297,6 @@ export default function FireChart({ result }: Props) {
               name="iDeCo"
             />
           )}
-          <Area
-            type="monotone"
-            dataKey="investmentPart"
-            stackId="1"
-            stroke="#4488ff"
-            strokeWidth={1.5}
-            fill="url(#gradInvestment)"
-            name="通常投資"
-          />
         </AreaChart>
       </ResponsiveContainer>
 
@@ -253,20 +307,30 @@ export default function FireChart({ result }: Props) {
         </span>
         {hasDc && (
           <span className="legend-item">
-            <span className="legend-dot" style={{ background: '#ffaa00' }} />
-            DC（企業型）の複利
+            <span className="legend-dot" style={{ background: '#cc8800' }} />
+            DC元本
           </span>
         )}
-        {hasIdeco && (
+        {hasDc && (
           <span className="legend-item">
-            <span className="legend-dot" style={{ background: '#44cc88' }} />
-            iDeCo の複利
+            <span className="legend-dot" style={{ background: '#ffcc66' }} />
+            DC運用益
           </span>
         )}
         <span className="legend-item">
-          <span className="legend-dot" style={{ background: '#4488ff' }} />
-          通常投資の複利
+          <span className="legend-dot" style={{ background: '#2266cc' }} />
+          投資元本
         </span>
+        <span className="legend-item">
+          <span className="legend-dot" style={{ background: '#88bbff' }} />
+          投資運用益
+        </span>
+        {hasIdeco && (
+          <span className="legend-item">
+            <span className="legend-dot" style={{ background: '#44cc88' }} />
+            iDeCo
+          </span>
+        )}
         <span className="legend-item">
           <span className="legend-dot" style={{ background: '#ff4444', borderRadius: 0 }} />
           FIRE目標資産額

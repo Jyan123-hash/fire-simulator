@@ -38,10 +38,18 @@ export interface PensionInfo {
 export interface YearlySnapshot {
   age: number;
   totalAsset: number;
+  // 各資産の合計値
   investmentPart: number;
   cashPart: number;
   dcPart: number;
   idecoPart: number;
+  // 元本（拠出済み）と運用益（複利成長分）の内訳
+  investmentPrincipal: number;
+  investmentGains: number;
+  dcPrincipal: number;
+  dcGains: number;
+  idecoPrincipal: number;
+  idecoGains: number;
   accumulatedPart: number;
   isFire: boolean;
   isWithdrawal: boolean;
@@ -204,13 +212,20 @@ export function calcFire(input: FireInput): FireResult {
   );
 
   // ── Phase 2: クリーンシミュレーション ────────────────────────────
+  // 各資産について「合計値」と「元本（拠出済み）」を別途追跡。
+  // 元本: 初期評価額 + 拠出累計（出金時に比率按分で減少）
+  // 運用益 = 合計値 - 元本（複利成長分）
+  // 取り崩し時は合計値の比率と同じ比率で元本を減らす（元本/運用益の比率を維持）
   const snapshots: YearlySnapshot[] = [];
   let assetLifeAge: number | null = null;
 
-  let inv   = currentInvestment;
-  let cash  = currentCash;
-  let dc    = dcCurrentAmount;
-  let ideco = idecoCurrentAmount;
+  let inv          = currentInvestment;
+  let invPrincipal = currentInvestment;
+  let cash         = currentCash; // 利回りなし → 全て元本
+  let dc           = dcCurrentAmount;
+  let dcPrincipal  = dcCurrentAmount;
+  let ideco        = idecoCurrentAmount;
+  let idecoPrincipal = idecoCurrentAmount;
   let inWithdrawal = false;
 
   for (let yr = currentAge; yr < simEndAge; yr++) {
@@ -218,23 +233,32 @@ export function calcFire(input: FireInput): FireResult {
       // ── 積立フェーズ ──
       const contrib = getMonthlyContribution(yr);
       for (let m = 0; m < 12; m++) {
-        inv   += contrib;
-        dc    += dcMonthlyContribution;
-        ideco += idecoMonthlyContribution;
+        inv            += contrib;
+        invPrincipal   += contrib;
+        dc             += dcMonthlyContribution;
+        dcPrincipal    += dcMonthlyContribution;
+        ideco          += idecoMonthlyContribution;
+        idecoPrincipal += idecoMonthlyContribution;
+        // 複利成長（元本は変えない）
         inv   *= 1 + monthlyRate;
         dc    *= 1 + monthlyRate;
         ideco *= 1 + monthlyRate;
-        // cash は固定（利回りなし）
       }
       const total = inv + cash + dc + ideco;
       if (fireAge !== null && yr + 1 >= fireAge) {
-        if (!inWithdrawal) fireAsset = total; // FIRE開始時点の資産を記録
+        if (!inWithdrawal) fireAsset = total;
         inWithdrawal = true;
       }
 
       snapshots.push({
         age: yr + 1, totalAsset: total,
         investmentPart: inv, cashPart: cash, dcPart: dc, idecoPart: ideco,
+        investmentPrincipal: invPrincipal,
+        investmentGains:     Math.max(0, inv - invPrincipal),
+        dcPrincipal,
+        dcGains:             Math.max(0, dc - dcPrincipal),
+        idecoPrincipal,
+        idecoGains:          Math.max(0, ideco - idecoPrincipal),
         accumulatedPart: 0,
         isFire: inWithdrawal, isWithdrawal: inWithdrawal,
       });
@@ -244,42 +268,43 @@ export function calcFire(input: FireInput): FireResult {
       const pensionActive  = ageAtEnd >= pension.pensionStartAge;
       const dcUnlocked     = ageAtEnd >= DC_AVAILABLE_AGE;
 
-      // FIRE後の積立（副業収入など）
       const monthlyContrib = pensionActive
         ? postPensionMonthlyInvestment
         : postFireMonthlyInvestment;
 
-      // 月次取り崩し額:
-      //   年金受給前: 生活費/12（全額を資産から）
-      //   年金受給後: max(0, 生活費/12 − 年金月額)（年金で差額を充当し残りを資産から）
       const monthlyWithdrawal = pensionActive
         ? Math.max(0, annualExpenses / 12 - pension.monthlyPension)
         : annualExpenses / 12;
 
       for (let m = 0; m < 12; m++) {
-        // 積立を投資に加算 → 複利成長（現金は固定）
-        inv   += monthlyContrib;
+        inv          += monthlyContrib;
+        invPrincipal += monthlyContrib;
         inv   *= 1 + monthlyRate;
         dc    *= 1 + monthlyRate;
         ideco *= 1 + monthlyRate;
 
-        // 流動資産: 60歳未満はDC・iDeCo除外
         const liquidNow = inv + cash + (dcUnlocked ? dc + ideco : 0);
 
-        // 流動資産から比率按分で取り崩し
         if (liquidNow > 0 && monthlyWithdrawal > 0) {
           const withdrawal = Math.min(liquidNow, monthlyWithdrawal);
           const ratio      = withdrawal / liquidNow;
-          inv  -= inv  * ratio;
-          cash -= cash * ratio;
+          // 合計値と元本を同じ比率で減らす（元本/運用益の構成比を維持）
+          inv          -= inv          * ratio;
+          invPrincipal -= invPrincipal * ratio;
+          cash         -= cash         * ratio;
           if (dcUnlocked) {
-            dc    -= dc    * ratio;
-            ideco -= ideco * ratio;
+            dc             -= dc             * ratio;
+            dcPrincipal    -= dcPrincipal    * ratio;
+            ideco          -= ideco          * ratio;
+            idecoPrincipal -= idecoPrincipal * ratio;
           }
-          if (inv   < 0) inv   = 0;
-          if (cash  < 0) cash  = 0;
-          if (dc    < 0) dc    = 0;
-          if (ideco < 0) ideco = 0;
+          if (inv            < 0) inv            = 0;
+          if (invPrincipal   < 0) invPrincipal   = 0;
+          if (cash           < 0) cash           = 0;
+          if (dc             < 0) dc             = 0;
+          if (dcPrincipal    < 0) dcPrincipal    = 0;
+          if (ideco          < 0) ideco          = 0;
+          if (idecoPrincipal < 0) idecoPrincipal = 0;
         }
       }
 
@@ -293,6 +318,12 @@ export function calcFire(input: FireInput): FireResult {
         cashPart:       Math.max(0, cash),
         dcPart:         Math.max(0, dc),
         idecoPart:      Math.max(0, ideco),
+        investmentPrincipal: Math.max(0, invPrincipal),
+        investmentGains:     Math.max(0, inv - invPrincipal),
+        dcPrincipal:         Math.max(0, dcPrincipal),
+        dcGains:             Math.max(0, dc - dcPrincipal),
+        idecoPrincipal:      Math.max(0, idecoPrincipal),
+        idecoGains:          Math.max(0, ideco - idecoPrincipal),
         accumulatedPart: 0,
         isFire: true, isWithdrawal: true,
       });
