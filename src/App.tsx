@@ -7,6 +7,8 @@ import FireChart from './components/FireChart';
 import HensachiCard from './components/HensachiCard';
 import PensionCard from './components/PensionCard';
 import AuthButton from './components/AuthButton';
+import UpgradeButton from './components/UpgradeButton';
+import Toast from './components/Toast';
 
 const DEFAULT_INPUT: FireInput = {
   currentAge: 30,
@@ -31,13 +33,38 @@ const DEFAULT_INPUT: FireInput = {
   pensionStartAge: 65,
 };
 
+interface ToastState {
+  message: string;
+  variant: 'success' | 'info' | 'error';
+}
+
 export default function App() {
   const [input, setInput] = useState<FireInput>(DEFAULT_INPUT);
   const [isSingle, setIsSingle] = useState(true);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const isFirstLogin = useRef(true);
 
-  const { user, authLoading, saveStatus, login, logout, loadSettings, scheduleSave } =
-    useFireSettings();
+  const {
+    user, authLoading, saveStatus, plan, planLoading, refreshPlan,
+    login, logout, loadSettings, scheduleSave,
+  } = useFireSettings();
+
+  // ── URL パラメータ処理（決済結果） ──
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'true') {
+      setToast({ message: '🎉 Proプランへようこそ！', variant: 'success' });
+      // クエリ削除（リロードでトーストが再表示されないように）
+      window.history.replaceState({}, '', window.location.pathname);
+      // Webhook 反映を待ってから plan 再取得（少し遅延）
+      const t = setTimeout(() => { refreshPlan(); }, 2500);
+      return () => clearTimeout(t);
+    }
+    if (params.get('canceled') === 'true') {
+      setToast({ message: '決済がキャンセルされました', variant: 'info' });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [refreshPlan]);
 
   // ログイン時にFirestoreから設定を読み込む
   useEffect(() => {
@@ -50,14 +77,13 @@ export default function App() {
 
     loadSettings(user.uid).then((saved) => {
       if (saved) {
-        // 古い保存データに新フィールドが無い場合でも DEFAULT_INPUT でフォールバック
         setInput({ ...DEFAULT_INPUT, ...saved.input });
         setIsSingle(saved.isSingle);
       }
     });
   }, [user, loadSettings]);
 
-  // 設定変更時に自動保存（ログイン中のみ）
+  // 設定変更時に自動保存（Pro プラン中のみ実体保存される）
   const isInitialRender = useRef(true);
   useEffect(() => {
     if (isInitialRender.current) {
@@ -80,14 +106,23 @@ export default function App() {
 
   return (
     <div className="app">
+      {toast && (
+        <Toast
+          message={toast.message}
+          variant={toast.variant}
+          onClose={() => setToast(null)}
+        />
+      )}
+
       <header className="app-header">
         <h1 className="app-title">🔥 FIREシミュレーター</h1>
         <p className="app-subtitle">Financial Independence, Retire Early</p>
         <div className="auth-area">
+          <UpgradeButton user={user} plan={plan} planLoading={planLoading} />
           <AuthButton
             user={user}
             authLoading={authLoading}
-            saveStatus={saveStatus}
+            saveStatus={plan === 'pro' ? saveStatus : 'idle'}
             onLogin={login}
             onLogout={logout}
           />
