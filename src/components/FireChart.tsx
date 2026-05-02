@@ -96,9 +96,32 @@ export default function FireChart({ result }: Props) {
   const hasIdeco = snapshots.some((s) => s.idecoPart > 0);
   const hasDc    = snapshots.some((s) => s.dcPart > 0);
 
+  // Y軸上限: データの最大値と目標資産の1.1倍のうち大きい方を採用（必ず全データを表示）
   const datMax = Math.max(...snapshots.map((s) => s.totalAsset));
-  const yMax = Math.ceil(Math.min(datMax, Math.max(targetAsset * 1.3, 1000)) / 1000) * 1000;
-  const yTicks = Array.from({ length: yMax / 1000 + 1 }, (_, i) => i * 1000);
+  const yMaxRaw = Math.max(datMax, targetAsset * 1.1, 1000);
+
+  // 値のスケールに応じて適切な目盛り間隔を選択（10〜15本程度に収まるように）
+  const pickTickStep = (max: number): number => {
+    if (max <= 5_000)   return 500;
+    if (max <= 10_000)  return 1_000;
+    if (max <= 25_000)  return 2_500;
+    if (max <= 50_000)  return 5_000;
+    if (max <= 100_000) return 10_000;
+    if (max <= 250_000) return 25_000;
+    return 50_000;
+  };
+  const tickStep = pickTickStep(yMaxRaw);
+  const yMax = Math.ceil(yMaxRaw / tickStep) * tickStep;
+  const yTicks = Array.from({ length: yMax / tickStep + 1 }, (_, i) => i * tickStep);
+
+  // 軸ラベル: 1億以上は「○億」表示、それ以下は「○万」
+  const yTickFormatter = (v: number): string => {
+    if (v >= 10_000) {
+      const oku = v / 10_000;
+      return oku % 1 === 0 ? `${oku}億` : `${oku.toFixed(1)}億`;
+    }
+    return `${v.toLocaleString()}万`;
+  };
 
   // X軸: 5歳刻みのtick（5の倍数のみ表示）
   const firstAge = snapshots[0].age;
@@ -112,7 +135,7 @@ export default function FireChart({ result }: Props) {
       <ResponsiveContainer width="100%" height={400}>
         <AreaChart
           data={snapshots}
-          margin={{ top: 56, right: 20, left: 10, bottom: 10 }}
+          margin={{ top: 72, right: 20, left: 10, bottom: 10 }}
         >
           <defs>
             {/* 現金（元本のみ） */}
@@ -155,7 +178,7 @@ export default function FireChart({ result }: Props) {
           <YAxis
             stroke="#aaa"
             tick={{ fill: '#aaa', fontSize: 11 }}
-            tickFormatter={(v) => `${v}万`}
+            tickFormatter={yTickFormatter}
             domain={[0, yMax]}
             ticks={yTicks}
             interval={0}
@@ -189,18 +212,10 @@ export default function FireChart({ result }: Props) {
             />
           </ReferenceLine>
 
-          {/* FIRE達成縦線 */}
-          {fireAge !== null && (
-            <ReferenceLine x={fireAge} stroke="#ff8800" strokeWidth={2}>
-              <Label
-                value="🔥 FIRE"
-                position="top"
-                fill="#ff8800"
-                fontSize={13}
-                fontWeight="bold"
-              />
-            </ReferenceLine>
-          )}
+          {/* 縦線 3本のラベルを縦方向にずらして重なり回避
+              下段(offset=5): DC・iDeCo解禁
+              中段(offset=26): FIRE
+              上段(offset=47): 年金開始 */}
 
           {/* DC・iDeCo解禁ライン（下段） */}
           {fireAge !== null && DC_AVAILABLE_AGE > fireAge && DC_AVAILABLE_AGE <= lastAge && (
@@ -220,7 +235,21 @@ export default function FireChart({ result }: Props) {
             </ReferenceLine>
           )}
 
-          {/* 年金受給開始ライン（上段にずらす） */}
+          {/* FIRE達成縦線（中段） */}
+          {fireAge !== null && (
+            <ReferenceLine x={fireAge} stroke="#ff8800" strokeWidth={2}>
+              <Label
+                value="🔥 FIRE"
+                position="top"
+                offset={26}
+                fill="#ff8800"
+                fontSize={13}
+                fontWeight="bold"
+              />
+            </ReferenceLine>
+          )}
+
+          {/* 年金受給開始ライン（上段） */}
           {result.pension.pensionStartAge <= lastAge && (
             <ReferenceLine
               x={result.pension.pensionStartAge}
@@ -231,7 +260,7 @@ export default function FireChart({ result }: Props) {
               <Label
                 value={`💰 年金開始 (${result.pension.monthlyPension.toFixed(1)}万/月)`}
                 position="top"
-                offset={24}
+                offset={47}
                 fill="#44bbdd"
                 fontSize={11}
               />

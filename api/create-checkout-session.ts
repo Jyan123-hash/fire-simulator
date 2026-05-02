@@ -35,6 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       customer_email: typeof email === 'string' ? email : undefined,
       subscription_data: {
         metadata: { uid },
+        trial_period_days: 3, // 3日間無料トライアル
       },
       allow_promotion_codes: true,
     });
