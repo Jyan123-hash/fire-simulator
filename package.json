@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "og:generate": "node scripts/svg-to-png.mjs"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "sharp": "^0.34.5",
     "typescript": "~6.0.2",
     "vite": "^8.0.10"
   },
