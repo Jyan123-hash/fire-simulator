@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import {
   AccumulationStep,
   FireInput,
@@ -12,6 +13,19 @@ interface Props {
   isSingle: boolean;
   onChange: (input: FireInput, isSingle: boolean) => void;
   assetReachedAge?: number | null;
+}
+
+function clamp(v: number, min?: number, max?: number): number {
+  if (min !== undefined && v < min) v = min;
+  if (max !== undefined && v > max) v = max;
+  return v;
+}
+
+// 小数点 step に伴う浮動小数誤差を補正
+function roundToStep(v: number, step: number): number {
+  // step が 0.1 → 1 桁、0.5 → 1 桁、1 → 0 桁、10 → 0 桁
+  const decimals = step < 1 ? (step.toString().split('.')[1]?.length ?? 0) : 0;
+  return Number(v.toFixed(decimals));
 }
 
 function NumInput({
@@ -31,19 +45,49 @@ function NumInput({
   step?: number;
   unit?: string;
 }) {
+  const s = step ?? 1;
+  const dec = (e: MouseEvent) => {
+    e.preventDefault();
+    onChange(clamp(roundToStep(value - s, s), min, max));
+  };
+  const inc = (e: MouseEvent) => {
+    e.preventDefault();
+    onChange(clamp(roundToStep(value + s, s), min, max));
+  };
+  const onBlur = () => {
+    // フォーカスアウト時に範囲外を補正
+    const clamped = clamp(value, min, max);
+    if (clamped !== value) onChange(clamped);
+  };
   return (
     <div className="input-row">
       <label className="input-label">{label}</label>
       <div className="input-with-unit">
-        <input
-          type="number"
-          className="input-field"
-          value={value}
-          min={min}
-          max={max}
-          step={step ?? 1}
-          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        />
+        <div className="num-stepper">
+          <button type="button" className="step-btn" onClick={dec} aria-label="減らす">−</button>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="input-field"
+            value={value}
+            min={min}
+            max={max}
+            step={s}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === '') {
+                // 入力中の空文字は許容（onBlur で補正）
+                onChange(0);
+                return;
+              }
+              const parsed = parseFloat(raw);
+              if (Number.isNaN(parsed)) return;
+              onChange(parsed);
+            }}
+            onBlur={onBlur}
+          />
+          <button type="button" className="step-btn" onClick={inc} aria-label="増やす">＋</button>
+        </div>
         {unit && <span className="input-unit">{unit}</span>}
       </div>
     </div>
@@ -369,24 +413,15 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
         />
 
         {/* 年金受給開始年齢 + 調整率バッジ */}
-        <div className="input-row">
-          <label className="input-label">受給開始年齢</label>
-          <div className="input-with-unit">
-            <input
-              type="number"
-              className="input-field"
-              value={input.pensionStartAge ?? PENSION_BASE_AGE}
-              min={PENSION_MIN_AGE}
-              max={PENSION_MAX_AGE}
-              step={1}
-              onChange={(e) => {
-                const v = parseInt(e.target.value) || PENSION_BASE_AGE;
-                update({ pensionStartAge: Math.max(PENSION_MIN_AGE, Math.min(PENSION_MAX_AGE, v)) });
-              }}
-            />
-            <span className="input-unit">歳</span>
-          </div>
-        </div>
+        <NumInput
+          label="受給開始年齢"
+          value={input.pensionStartAge ?? PENSION_BASE_AGE}
+          onChange={(v) => update({ pensionStartAge: v })}
+          min={PENSION_MIN_AGE}
+          max={PENSION_MAX_AGE}
+          step={1}
+          unit="歳"
+        />
 
         {/* 調整率の説明バッジ */}
         <div className="pension-adj-badge" style={{ color: pensionAdj.color }}>

@@ -917,3 +917,53 @@ body {
   from { opacity: 0; transform: translate(-50%, -10px); }
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
+
+/* ── Number Stepper (モバイル対応の +/− ボタン) ──────────────────── */
+.num-stepper {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface2);
+}
+.num-stepper .input-field {
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  width: 70px;
+  padding: 6px 4px;
+}
+.num-stepper .input-field:focus {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: -2px;
+}
+.step-btn {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 12px;
+  min-width: 36px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s, color 0.1s;
+}
+.step-btn:hover { background: rgba(68, 136, 255, 0.12); color: var(--accent-blue); }
+.step-btn:active { background: rgba(68, 136, 255, 0.25); }
+.step-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* iOS Safari でスピンボタンを非表示（自前の +/- に統一） */
+.num-stepper .input-field::-webkit-inner-spin-button,
+.num-stepper .input-field::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+  display: none;
+}
+.num-stepper .input-field {
+  -moz-appearance: textfield;
+}
