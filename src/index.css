@@ -257,20 +257,22 @@ button { font-family: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px 8px;
+  flex-wrap: wrap; /* ラベルが長い場合は入力欄を次の行に折り返す */
 }
 
 .input-label {
   font-size: 0.9rem;
   color: var(--text);
-  min-width: 110px;
-  flex-shrink: 0;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .input-with-unit {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto; /* 折り返し時も右寄せを維持 */
 }
 
 .input-field {
@@ -973,7 +975,7 @@ button { font-family: inherit; }
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
   border-radius: 0;
-  width: 70px;
+  width: 64px;
   padding: 6px 4px;
 }
 .num-stepper .input-field:focus {
@@ -988,8 +990,8 @@ button { font-family: inherit; }
   font-size: 1.1rem;
   font-weight: 700;
   line-height: 1;
-  padding: 0 12px;
-  min-width: 36px;
+  padding: 0 10px;
+  min-width: 32px;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.1s, color 0.1s;
