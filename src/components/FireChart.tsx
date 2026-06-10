@@ -74,7 +74,7 @@ function CustomTooltip({
         </span>
       </div>
       <div className="tooltip-row">
-        <span className="dot" style={{ background: '#2266cc' }} />
+        <span className="dot" style={{ background: '#6366f1' }} />
         通常投資：{formatAsset(d.investmentPart)}
         <span style={{ color: '#888', marginLeft: 6, fontSize: '0.78rem' }}>
           （元本{formatAsset(d.investmentPrincipal)} / 運用益{formatAsset(d.investmentGains)}）
@@ -155,13 +155,13 @@ export default function FireChart({ result }: Props) {
             </linearGradient>
             {/* 通常投資 元本（濃い青） */}
             <linearGradient id="gradInvPrincipal" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#2266cc" stopOpacity={0.95} />
-              <stop offset="95%" stopColor="#2266cc" stopOpacity={0.4} />
+              <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.95} />
+              <stop offset="95%" stopColor="#6366f1" stopOpacity={0.4} />
             </linearGradient>
             {/* 通常投資 運用益（薄い青） */}
             <linearGradient id="gradInvGains" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#88bbff" stopOpacity={0.65} />
-              <stop offset="95%" stopColor="#88bbff" stopOpacity={0.15} />
+              <stop offset="5%"  stopColor="#a5b4fc" stopOpacity={0.65} />
+              <stop offset="95%" stopColor="#a5b4fc" stopOpacity={0.15} />
             </linearGradient>
           </defs>
 
@@ -312,7 +312,7 @@ export default function FireChart({ result }: Props) {
             type="monotone"
             dataKey="investmentPrincipal"
             stackId="1"
-            stroke="#2266cc"
+            stroke="#6366f1"
             strokeWidth={1}
             fill="url(#gradInvPrincipal)"
             name="投資元本"
@@ -321,7 +321,7 @@ export default function FireChart({ result }: Props) {
             type="monotone"
             dataKey="investmentGains"
             stackId="1"
-            stroke="#88bbff"
+            stroke="#a5b4fc"
             strokeWidth={1}
             fill="url(#gradInvGains)"
             name="投資運用益"
@@ -358,11 +358,11 @@ export default function FireChart({ result }: Props) {
           </span>
         )}
         <span className="legend-item">
-          <span className="legend-dot" style={{ background: '#2266cc' }} />
+          <span className="legend-dot" style={{ background: '#6366f1' }} />
           投資元本
         </span>
         <span className="legend-item">
-          <span className="legend-dot" style={{ background: '#88bbff' }} />
+          <span className="legend-dot" style={{ background: '#a5b4fc' }} />
           投資運用益
         </span>
         {hasIdeco && (
