@@ -53,19 +53,17 @@ button { font-family: inherit; }
 .app-title {
   font-size: clamp(1.6rem, 4vw, 2.4rem);
   font-weight: 800;
-  background: linear-gradient(120deg, #e0e4ff 0%, #a5b4fc 50%, #818cf8 100%);
+  background: linear-gradient(135deg, #ff6600, #ffcc00, #ff4466);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
 }
 
 .app-subtitle {
   color: var(--muted);
   font-size: 0.9rem;
   margin-top: 4px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 /* ── Auth ── */
