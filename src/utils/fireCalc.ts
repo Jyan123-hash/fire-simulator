@@ -345,3 +345,92 @@ export function formatAsset(man: number): string {
   }
   return `${Math.round(man).toLocaleString()}万円`;
 }
+
+// 表・カード向けの短い表記（単位は「万」「億」）
+export function formatAssetShort(man: number): string {
+  const abs = Math.abs(man);
+  const sign = man < 0 ? '−' : '';
+  if (abs >= 10000) {
+    const oku = abs / 10000;
+    return `${sign}${oku.toFixed(1)}億`;
+  }
+  return `${sign}${Math.round(abs).toLocaleString()}万`;
+}
+
+// ── 年ごとの運用益（複利で増えた額）内訳 ────────────────────────────
+export type GainPhase = 'accumulation' | 'withdrawal' | 'pension';
+
+export interface YearlyGain {
+  age: number;
+  phase: GainPhase;
+  isFireYear: boolean;
+  totalAsset: number;
+  principal: number;      // 元本（現金含む）
+  cumulativeGains: number; // 累計運用益
+  yearlyGain: number;      // その年の運用益増減（前年差）
+}
+
+export interface GainsSummary {
+  rows: YearlyGain[];
+  fireCumulativeGains: number;   // FIRE時点（未達なら最終年）の累計運用益
+  accumulationAvgGain: number;   // 積立期の年平均運用益
+  multipleOfPrincipal: number;   // FIRE時点の 総資産 ÷ 元本
+  referenceAge: number;          // 上記3指標の基準年齢
+}
+
+export function calcYearlyGains(result: FireResult): GainsSummary {
+  const { snapshots, fireAge, pension, assetLifeAge } = result;
+
+  // 資産が尽きた年以降は全て0が並ぶだけなので、その年で打ち切る
+  const visible =
+    assetLifeAge !== null
+      ? snapshots.filter((s) => s.age <= assetLifeAge)
+      : snapshots;
+
+  const rows: YearlyGain[] = [];
+  let prevCumulative = 0;
+
+  for (const s of visible) {
+    const cumulativeGains = s.investmentGains + s.dcGains + s.idecoGains;
+    const principal =
+      s.investmentPrincipal + s.cashPart + s.dcPrincipal + s.idecoPrincipal;
+
+    const phase: GainPhase = !s.isWithdrawal
+      ? 'accumulation'
+      : s.age >= pension.pensionStartAge
+      ? 'pension'
+      : 'withdrawal';
+
+    rows.push({
+      age: s.age,
+      phase,
+      isFireYear: fireAge !== null && s.age === fireAge,
+      totalAsset: s.totalAsset,
+      principal,
+      cumulativeGains,
+      yearlyGain: cumulativeGains - prevCumulative,
+    });
+
+    prevCumulative = cumulativeGains;
+  }
+
+  // 基準年齢: FIRE到達年。未達なら最終年。
+  const refRow =
+    (fireAge !== null ? rows.find((r) => r.age === fireAge) : undefined) ??
+    rows[rows.length - 1];
+
+  const accumulationRows = rows.filter((r) => r.phase === 'accumulation');
+  const accumulationAvgGain =
+    accumulationRows.length > 0
+      ? accumulationRows.reduce((sum, r) => sum + r.yearlyGain, 0) / accumulationRows.length
+      : 0;
+
+  return {
+    rows,
+    fireCumulativeGains: refRow?.cumulativeGains ?? 0,
+    accumulationAvgGain,
+    multipleOfPrincipal:
+      refRow && refRow.principal > 0 ? refRow.totalAsset / refRow.principal : 0,
+    referenceAge: refRow?.age ?? 0,
+  };
+}

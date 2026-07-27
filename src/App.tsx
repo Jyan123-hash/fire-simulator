@@ -4,6 +4,7 @@ import { useFireSettings } from './hooks/useFireSettings';
 import FireBanner from './components/FireBanner';
 import InputPanel from './components/InputPanel';
 import FireChart from './components/FireChart';
+import GainsCard from './components/GainsCard';
 import HensachiCard from './components/HensachiCard';
 import PensionCard from './components/PensionCard';
 import AuthButton from './components/AuthButton';
@@ -147,6 +148,7 @@ export default function App() {
         </div>
         <div className="right-col">
           <FireChart result={result} />
+          <GainsCard result={result} />
           <PensionCard
             pension={result.pension}
             fireAge={result.fireAge}

@@ -1010,3 +1010,152 @@ button { font-family: inherit; }
 .num-stepper .input-field {
   -moz-appearance: textfield;
 }
+
+/* ── Gains Card（複利で増えた金額） ──────────────────────────────── */
+.gains-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: var(--shadow-card);
+}
+
+.gains-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.gains-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+
+.gains-metric__label {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.gains-metric__value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--indigo-soft);
+  letter-spacing: -0.01em;
+}
+
+.gains-metric__unit {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-left: 2px;
+}
+
+.gains-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--border);
+  padding: 12px 2px 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.gains-toggle:hover { color: var(--indigo-light); }
+
+.gains-toggle__caret {
+  display: inline-block;
+  font-size: 0.9rem;
+  transition: transform 0.2s;
+}
+
+.gains-toggle__caret.is-open { transform: rotate(180deg); }
+
+.gains-table-scroll {
+  max-height: 360px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius-sm);
+}
+
+.gains-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.gains-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-align: right;
+  padding: 6px 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.gains-th--age   { text-align: left; width: 68px; }
+.gains-th--delta { width: 84px; }
+
+.gains-table td {
+  text-align: right;
+  padding: 7px 6px;
+  border-bottom: 1px solid rgba(43, 49, 88, 0.5);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.gains-table td.gains-td--age   { text-align: left; }
+.gains-table td.gains-td--muted { color: var(--muted); }
+
+.gains-age {
+  display: block;
+  line-height: 1.3;
+}
+
+.gains-phase {
+  display: block;
+  font-size: 0.66rem;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.gains-table tr.is-fire td {
+  background: rgba(99, 102, 241, 0.14);
+  color: var(--indigo-soft);
+  font-weight: 700;
+}
+
+.gains-table tr.is-fire .gains-phase { color: var(--indigo-soft); }
+.gains-table tr.is-fire td:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.gains-table tr.is-fire td:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.gains-table td.gains-pos { color: var(--accent-green); }
+.gains-table td.gains-neg { color: var(--accent-red); }
+.gains-table tr.is-fire td.gains-pos,
+.gains-table tr.is-fire td.gains-neg { color: var(--indigo-soft); }
+
+.gains-note {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.7;
+  opacity: 0.8;
+}
