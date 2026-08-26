@@ -2,6 +2,8 @@ import type { MouseEvent } from 'react';
 import {
   AccumulationStep,
   FireInput,
+  SpotContribution,
+  resolveCurrentAge,
   calcPensionAdjustmentRate,
   PENSION_MIN_AGE,
   PENSION_MAX_AGE,
@@ -111,6 +113,9 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
     onChange({ ...input, ...partial }, newIsSingle ?? isSingle);
   };
 
+  // 年齢は生年月日から自動算出（未入力時は currentAge をフォールバック）
+  const currentAge = resolveCurrentAge(input);
+
   const updateStep = (idx: number, partial: Partial<AccumulationStep>) => {
     const newSteps = input.steps.map((s, i) =>
       i === idx ? { ...s, ...partial } : s
@@ -122,13 +127,46 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
     if (input.steps.length >= 4) return;
     const lastAge = input.steps.length > 0
       ? input.steps[input.steps.length - 1].startAge + 5
-      : input.currentAge;
+      : currentAge;
     update({ steps: [...input.steps, { startAge: lastAge, endAge: null, monthlyAmount: 5 }] });
   };
 
   const removeStep = (idx: number) => {
     update({ steps: input.steps.filter((_, i) => i !== idx) });
   };
+
+  // ── スポット追加 ──
+  const spots = input.spotContributions ?? [];
+
+  const updateSpot = (idx: number, partial: Partial<SpotContribution>) => {
+    update({
+      spotContributions: spots.map((sp, i) => (i === idx ? { ...sp, ...partial } : sp)),
+    });
+  };
+
+  const addSpot = () => {
+    if (spots.length >= 12) return;
+    const now = new Date();
+    const last = spots[spots.length - 1];
+    // 直前の指定があればその1年後、無ければ翌月を初期値にする
+    const base = last
+      ? { year: last.year + 1, month: last.month }
+      : { year: now.getMonth() + 1 === 12 ? now.getFullYear() + 1 : now.getFullYear(),
+          month: now.getMonth() + 1 === 12 ? 1 : now.getMonth() + 2 };
+    update({ spotContributions: [...spots, { ...base, amount: 100 }] });
+  };
+
+  const removeSpot = (idx: number) => {
+    update({ spotContributions: spots.filter((_, i) => i !== idx) });
+  };
+
+  const nowYear  = new Date().getFullYear();
+  const nowMonth = new Date().getMonth() + 1;
+  const isPastSpot = (sp: SpotContribution) =>
+    sp.year * 12 + sp.month < nowYear * 12 + nowMonth;
+  const spotTotal = spots
+    .filter((sp) => !isPastSpot(sp))
+    .reduce((sum, sp) => sum + (sp.amount || 0), 0);
 
   const totalCurrentAssets =
     input.currentInvestment + input.currentCash + input.dcCurrentAmount + input.idecoCurrentAmount;
@@ -149,12 +187,28 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
       <section className="input-section">
         <h3 className="section-title">基本情報</h3>
 
-        <NumInput
-          label="現在の年齢"
-          value={input.currentAge}
-          onChange={(v) => update({ currentAge: v })}
-          min={18} max={70} unit="歳"
-        />
+        <div className="input-row">
+          <label className="input-label">生年月日</label>
+          <div className="input-with-unit">
+            <input
+              type="date"
+              className="input-field input-field--date"
+              value={input.birthDate ?? ''}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => update({ birthDate: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <div className="input-row info-row">
+          <label className="input-label">現在の年齢</label>
+          <span className="info-value info-value--neutral">
+            {currentAge}歳
+            {!input.birthDate && (
+              <span className="input-unit" style={{ marginLeft: 6 }}>（生年月日未設定）</span>
+            )}
+          </span>
+        </div>
 
         <div className="input-row">
           <label className="input-label">世帯種別</label>
@@ -254,6 +308,88 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
         </span>
       </div>
 
+      {/* ── スポット追加 ── */}
+      <section className="input-section">
+        <h3 className="section-title">スポット追加（最大12件）</h3>
+
+        {spots.length === 0 && (
+          <p className="spot-empty">
+            退職金・賞与・相続など、特定の年月にまとまった額を投資へ追加できます。
+          </p>
+        )}
+
+        {spots.map((sp, idx) => {
+          const past = isPastSpot(sp);
+          return (
+            <div key={idx} className={`step-row step-row--col ${past ? 'is-past' : ''}`}>
+              <div className="step-row-header">
+                <span className="step-label">Spot {idx + 1}</span>
+                <button className="remove-btn" onClick={() => removeSpot(idx)}>✕</button>
+              </div>
+              <div className="step-fields">
+                <div className="input-with-unit">
+                  <input
+                    type="number"
+                    className="input-field step-field"
+                    value={sp.year}
+                    min={nowYear} max={nowYear + 70}
+                    onChange={(e) =>
+                      updateSpot(idx, { year: parseInt(e.target.value) || nowYear })
+                    }
+                  />
+                  <span className="input-unit">年</span>
+                </div>
+                <div className="input-with-unit">
+                  <input
+                    type="number"
+                    className="input-field step-field"
+                    value={sp.month}
+                    min={1} max={12}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value) || 1;
+                      updateSpot(idx, { month: Math.max(1, Math.min(12, v)) });
+                    }}
+                  />
+                  <span className="input-unit">月</span>
+                </div>
+                <div className="input-with-unit">
+                  <input
+                    type="number"
+                    className="input-field step-field"
+                    value={sp.amount}
+                    min={0} step={10}
+                    onChange={(e) =>
+                      updateSpot(idx, { amount: parseFloat(e.target.value) || 0 })
+                    }
+                  />
+                  <span className="input-unit">万円</span>
+                </div>
+              </div>
+              {past && (
+                <p className="spot-past-note">
+                  過去の年月のため計算に反映されません
+                </p>
+              )}
+            </div>
+          );
+        })}
+
+        {spots.length < 12 && (
+          <button className="add-step-btn" onClick={addSpot}>
+            ＋ スポット追加
+          </button>
+        )}
+
+        {spotTotal > 0 && (
+          <div className="input-row info-row">
+            <label className="input-label">追加合計</label>
+            <span className="info-value info-value--neutral">
+              {spotTotal.toLocaleString()}万円
+            </span>
+          </div>
+        )}
+      </section>
+
       {/* ── 積立設定 ── */}
       <section className="input-section">
         <h3 className="section-title">積立設定（最大4ステップ）</h3>
@@ -270,9 +406,9 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
                   type="number"
                   className="input-field step-field"
                   value={step.startAge}
-                  min={input.currentAge} max={80}
+                  min={currentAge} max={80}
                   onChange={(e) =>
-                    updateStep(idx, { startAge: parseInt(e.target.value) || input.currentAge })
+                    updateStep(idx, { startAge: parseInt(e.target.value) || currentAge })
                   }
                 />
                 <span className="input-unit">歳〜</span>
@@ -329,7 +465,7 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
           label="FIRE開始希望年齢"
           value={input.targetFireAge}
           onChange={(v) => update({ targetFireAge: v })}
-          min={input.currentAge} max={75} unit="歳"
+          min={currentAge} max={75} unit="歳"
         />
 
         {/* FIRE開始希望年齢時点で目標資産未達の場合の警告 */}

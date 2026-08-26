@@ -4,8 +4,16 @@ export interface AccumulationStep {
   monthlyAmount: number; // 万円
 }
 
+export interface SpotContribution {
+  year: number;   // 西暦
+  month: number;  // 1-12
+  amount: number; // 万円（投資へ一括追加）
+}
+
 export interface FireInput {
-  currentAge: number;
+  currentAge: number;               // birthDate 未入力時のフォールバック
+  birthDate: string;                // YYYY-MM-DD（空文字なら currentAge を使用）
+  spotContributions: SpotContribution[]; // スポットでの追加投資
   currentInvestment: number;        // 現在の投資額（万円）
   currentCash: number;              // 現在の現金（万円）固定・利回りなし
   dcCurrentAmount: number;          // 企業型DC 現在の投資額（万円）
@@ -77,6 +85,26 @@ export const PENSION_BASE_AGE = 65;
 export const PENSION_EARLY_RATE    = 0.004; // 0.4%/月
 export const PENSION_DEFERRED_RATE = 0.007; // 0.7%/月
 
+// ── 生年月日から年齢を算出 ────────────────────────────────────────
+// birthDate は "YYYY-MM-DD"。誕生日を迎えていなければ 1 引く。
+export function calcAgeFromBirthDate(birthDate: string, today: Date = new Date()): number | null {
+  const parts = (birthDate ?? '').split('-');
+  if (parts.length !== 3) return null;
+  const [y, mo, d] = parts.map(Number);
+  if (!Number.isInteger(y) || !Number.isInteger(mo) || !Number.isInteger(d)) return null;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  let age = today.getFullYear() - y;
+  const nowMo = today.getMonth() + 1;
+  if (nowMo < mo || (nowMo === mo && today.getDate() < d)) age--;
+  return age >= 0 && age < 130 ? age : null;
+}
+
+// birthDate があればそこから、無ければ currentAge をそのまま使う
+export function resolveCurrentAge(input: FireInput, today: Date = new Date()): number {
+  const fromBirth = input.birthDate ? calcAgeFromBirthDate(input.birthDate, today) : null;
+  return fromBirth ?? input.currentAge;
+}
+
 export function calcPensionAdjustmentRate(pensionStartAge: number): number {
   const clampedAge = Math.max(PENSION_MIN_AGE, Math.min(PENSION_MAX_AGE, pensionStartAge));
   const monthsDiff = (clampedAge - PENSION_BASE_AGE) * 12;
@@ -139,7 +167,6 @@ function calcPensionInternal(
 //
 export function calcFire(input: FireInput): FireResult {
   const {
-    currentAge,
     currentInvestment,
     currentCash,
     dcCurrentAmount,
@@ -158,10 +185,29 @@ export function calcFire(input: FireInput): FireResult {
     pensionStartAge,
   } = input;
 
+  // 年齢は生年月日から自動算出（未入力なら currentAge をフォールバック）
+  const currentAge  = resolveCurrentAge(input);
   const monthlyRate = Math.pow(1 + annualRate / 100, 1 / 12) - 1;
   const simEndAge   = Math.min(Math.max(currentAge + 65, 101), 105);
 
   const sortedSteps = [...steps].sort((a, b) => a.startAge - b.startAge);
+
+  // ── スポット追加をシミュレーション開始からの経過月インデックスに変換 ──
+  // シミュレーションは「今月」を起点に (yr - currentAge) * 12 + m 月目として進む。
+  // 過去の月・シミュレーション期間外の指定は無視する。
+  const now       = new Date();
+  const nowYear   = now.getFullYear();
+  const nowMonth  = now.getMonth() + 1;
+  const totalMonths = (simEndAge - currentAge) * 12;
+  const spotByMonth = new Map<number, number>();
+  for (const sp of input.spotContributions ?? []) {
+    if (!sp || !sp.amount) continue;
+    const offset = (sp.year - nowYear) * 12 + (sp.month - nowMonth);
+    if (offset < 0 || offset >= totalMonths) continue;
+    spotByMonth.set(offset, (spotByMonth.get(offset) ?? 0) + sp.amount);
+  }
+  const spotAt = (yr: number, m: number): number =>
+    spotByMonth.get((yr - currentAge) * 12 + m) ?? 0;
 
   function getMonthlyContribution(age: number): number {
     let amount = 0;
@@ -184,7 +230,7 @@ export function calcFire(input: FireInput): FireResult {
     for (let yr = currentAge; yr < simEndAge; yr++) {
       const contrib = getMonthlyContribution(yr);
       for (let m = 0; m < 12; m++) {
-        inv   += contrib;
+        inv   += contrib + spotAt(yr, m);
         dc    += dcMonthlyContribution;
         ideco += idecoMonthlyContribution;
         inv   *= 1 + monthlyRate;
@@ -233,8 +279,9 @@ export function calcFire(input: FireInput): FireResult {
       // ── 積立フェーズ ──
       const contrib = getMonthlyContribution(yr);
       for (let m = 0; m < 12; m++) {
-        inv            += contrib;
-        invPrincipal   += contrib;
+        const spot = spotAt(yr, m);
+        inv            += contrib + spot;
+        invPrincipal   += contrib + spot;
         dc             += dcMonthlyContribution;
         dcPrincipal    += dcMonthlyContribution;
         ideco          += idecoMonthlyContribution;
@@ -277,8 +324,9 @@ export function calcFire(input: FireInput): FireResult {
         : annualExpenses / 12;
 
       for (let m = 0; m < 12; m++) {
-        inv          += monthlyContrib;
-        invPrincipal += monthlyContrib;
+        const spot = spotAt(yr, m);
+        inv          += monthlyContrib + spot;
+        invPrincipal += monthlyContrib + spot;
         inv   *= 1 + monthlyRate;
         dc    *= 1 + monthlyRate;
         ideco *= 1 + monthlyRate;

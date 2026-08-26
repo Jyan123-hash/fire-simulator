@@ -1159,3 +1159,29 @@ button { font-family: inherit; }
   line-height: 1.7;
   opacity: 0.8;
 }
+
+/* ── 生年月日 / スポット追加 ─────────────────────────────────────── */
+.input-field--date {
+  width: 160px;
+  text-align: left;
+  font-size: 0.92rem;
+  color-scheme: dark;
+}
+
+.spot-empty {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.7;
+  opacity: 0.85;
+}
+
+.step-row.is-past {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.spot-past-note {
+  font-size: 0.72rem;
+  color: var(--amber);
+  line-height: 1.5;
+}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { FireInput, calcFire } from './utils/fireCalc';
+import { FireInput, calcFire, resolveCurrentAge } from './utils/fireCalc';
 import { useFireSettings } from './hooks/useFireSettings';
 import FireBanner from './components/FireBanner';
 import InputPanel from './components/InputPanel';
@@ -13,6 +13,8 @@ import Toast from './components/Toast';
 
 const DEFAULT_INPUT: FireInput = {
   currentAge: 30,
+  birthDate: '',
+  spotContributions: [],
   currentInvestment: 150,
   currentCash: 50,
   dcCurrentAmount: 80,
@@ -96,6 +98,7 @@ export default function App() {
   }, [input, isSingle, user, scheduleSave]);
 
   const result = useMemo(() => calcFire(input), [input]);
+  const currentAge = useMemo(() => resolveCurrentAge(input), [input]);
 
   const handleChange = (newInput: FireInput, newIsSingle: boolean) => {
     setInput(newInput);
@@ -130,7 +133,7 @@ export default function App() {
         </div>
       </header>
 
-      <FireBanner result={result} currentAge={input.currentAge} />
+      <FireBanner result={result} currentAge={currentAge} />
 
       <main className="app-main">
         <div className="left-col">
@@ -142,7 +145,7 @@ export default function App() {
           />
           <HensachiCard
             savingsMan={totalSavings}
-            age={input.currentAge}
+            age={currentAge}
             isSingle={isSingle}
           />
         </div>
