@@ -398,6 +398,10 @@ export function formatAsset(man: number): string {
 export function formatAssetShort(man: number): string {
   const abs = Math.abs(man);
   const sign = man < 0 ? '−' : '';
+  if (!Number.isFinite(man)) return '—';
+  if (abs >= 100_000_000) {
+    return `${sign}${(abs / 100_000_000).toFixed(1)}兆`;
+  }
   if (abs >= 10000) {
     const oku = abs / 10000;
     return `${sign}${oku.toFixed(1)}億`;

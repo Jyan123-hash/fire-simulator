@@ -98,24 +98,27 @@ export default function FireChart({ result }: Props) {
 
   // Y軸上限: データの最大値と目標資産の1.1倍のうち大きい方を採用（必ず全データを表示）
   const datMax = Math.max(...snapshots.map((s) => s.totalAsset));
-  const yMaxRaw = Math.max(datMax, targetAsset * 1.1, 1000);
+  const rawMax = Math.max(datMax, targetAsset * 1.1, 1000);
+  // 年利を上げると資産は指数的に増えるため、非有限値・異常値を必ず弾く
+  const safeMax = Number.isFinite(rawMax) && rawMax > 0 ? rawMax : 1000;
 
-  // 値のスケールに応じて適切な目盛り間隔を選択（10〜15本程度に収まるように）
-  const pickTickStep = (max: number): number => {
-    if (max <= 5_000)   return 500;
-    if (max <= 10_000)  return 1_000;
-    if (max <= 25_000)  return 2_500;
-    if (max <= 50_000)  return 5_000;
-    if (max <= 100_000) return 10_000;
-    if (max <= 250_000) return 25_000;
-    return 50_000;
-  };
-  const tickStep = pickTickStep(yMaxRaw);
-  const yMax = Math.ceil(yMaxRaw / tickStep) * tickStep;
-  const yTicks = Array.from({ length: yMax / tickStep + 1 }, (_, i) => i * tickStep);
+  // 目盛り間隔は 1/2/2.5/5 × 10^n から選び、本数を常に MAX_TICKS 前後に収める。
+  // 固定刻みだと高年利時に目盛り数が爆発し Array.from が RangeError で落ちる。
+  const MAX_TICKS = 12;
+  const rough = safeMax / MAX_TICKS;
+  const pow   = Math.pow(10, Math.floor(Math.log10(rough)));
+  const tickStep =
+    [1, 2, 2.5, 5, 10].map((m) => m * pow).find((v) => v >= rough) ?? pow * 10;
+  const yMax = Math.ceil(safeMax / tickStep) * tickStep;
+  const tickCount = Math.min(Math.round(yMax / tickStep) + 1, MAX_TICKS + 2);
+  const yTicks = Array.from({ length: tickCount }, (_, i) => i * tickStep);
 
-  // 軸ラベル: 1億以上は「○億」表示、それ以下は「○万」
+  // 軸ラベル: 1兆以上は「○兆」、1億以上は「○億」、それ以下は「○万」
   const yTickFormatter = (v: number): string => {
+    if (v >= 100_000_000) {
+      const cho = v / 100_000_000;
+      return cho % 1 === 0 ? `${cho}兆` : `${cho.toFixed(1)}兆`;
+    }
     if (v >= 10_000) {
       const oku = v / 10_000;
       return oku % 1 === 0 ? `${oku}億` : `${oku.toFixed(1)}億`;

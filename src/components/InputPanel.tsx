@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { MouseEvent } from 'react';
 import {
   AccumulationStep,
@@ -30,6 +31,59 @@ function roundToStep(v: number, step: number): number {
   return Number(v.toFixed(decimals));
 }
 
+// 数値入力の共通コンポーネント。
+// 入力途中の空文字や "1." を消させないよう、確定値とは別に文字列 draft を保持する。
+// （draft を持たないと、フィールドを消した瞬間に 0 が書き戻されて上書き入力できない）
+function NumberField({
+  value,
+  onChange,
+  min,
+  max,
+  className = 'input-field',
+  integer = false,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+  className?: string;
+  integer?: boolean;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const handleChange = (input: string) => {
+    // 数字・小数点・マイナス以外を落とす（type="text" のため自前で行う）
+    const raw = [...input].filter((c) => '0123456789.-'.includes(c)).join('');
+    setDraft(raw);
+    // 入力途中の中間状態はモデルへ反映しない
+    if (raw === '' || raw === '-' || raw === '.' || raw === '-.' || raw.endsWith('.')) return;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return;
+    // 上限だけ即時適用する。青天井のまま再計算するとグラフが破綻するため。
+    onChange(clamp(integer ? Math.trunc(parsed) : parsed, undefined, max));
+  };
+
+  const handleBlur = () => {
+    const parsed = Number(draft ?? value);
+    const base = Number.isFinite(parsed) && (draft ?? '') !== '' ? parsed : value;
+    const next = clamp(integer ? Math.trunc(base) : base, min, max);
+    setDraft(null);
+    if (next !== value) onChange(next);
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode={integer ? 'numeric' : 'decimal'}
+      className={className}
+      value={draft ?? String(value)}
+      onChange={(e) => handleChange(e.target.value)}
+      onBlur={handleBlur}
+      onFocus={(e) => e.currentTarget.select()}
+    />
+  );
+}
+
 function NumInput({
   label,
   value,
@@ -56,38 +110,13 @@ function NumInput({
     e.preventDefault();
     onChange(clamp(roundToStep(value + s, s), min, max));
   };
-  const onBlur = () => {
-    // フォーカスアウト時に範囲外を補正
-    const clamped = clamp(value, min, max);
-    if (clamped !== value) onChange(clamped);
-  };
   return (
     <div className="input-row">
       <label className="input-label">{label}</label>
       <div className="input-with-unit">
         <div className="num-stepper">
           <button type="button" className="step-btn" onClick={dec} aria-label="減らす">−</button>
-          <input
-            type="number"
-            inputMode="decimal"
-            className="input-field"
-            value={value}
-            min={min}
-            max={max}
-            step={s}
-            onChange={(e) => {
-              const raw = e.target.value;
-              if (raw === '') {
-                // 入力中の空文字は許容（onBlur で補正）
-                onChange(0);
-                return;
-              }
-              const parsed = parseFloat(raw);
-              if (Number.isNaN(parsed)) return;
-              onChange(parsed);
-            }}
-            onBlur={onBlur}
-          />
+          <NumberField value={value} onChange={onChange} min={min} max={max} />
           <button type="button" className="step-btn" onClick={inc} aria-label="増やす">＋</button>
         </div>
         {unit && <span className="input-unit">{unit}</span>}
@@ -328,39 +357,29 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
               </div>
               <div className="step-fields">
                 <div className="input-with-unit">
-                  <input
-                    type="number"
+                  <NumberField
                     className="input-field step-field"
                     value={sp.year}
-                    min={nowYear} max={nowYear + 70}
-                    onChange={(e) =>
-                      updateSpot(idx, { year: parseInt(e.target.value) || nowYear })
-                    }
+                    min={1900} max={nowYear + 70} integer
+                    onChange={(v) => updateSpot(idx, { year: v })}
                   />
                   <span className="input-unit">年</span>
                 </div>
                 <div className="input-with-unit">
-                  <input
-                    type="number"
+                  <NumberField
                     className="input-field step-field"
                     value={sp.month}
-                    min={1} max={12}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value) || 1;
-                      updateSpot(idx, { month: Math.max(1, Math.min(12, v)) });
-                    }}
+                    min={1} max={12} integer
+                    onChange={(v) => updateSpot(idx, { month: v })}
                   />
                   <span className="input-unit">月</span>
                 </div>
                 <div className="input-with-unit">
-                  <input
-                    type="number"
+                  <NumberField
                     className="input-field step-field"
                     value={sp.amount}
-                    min={0} step={10}
-                    onChange={(e) =>
-                      updateSpot(idx, { amount: parseFloat(e.target.value) || 0 })
-                    }
+                    min={0} max={1000000}
+                    onChange={(v) => updateSpot(idx, { amount: v })}
                   />
                   <span className="input-unit">万円</span>
                 </div>
@@ -402,14 +421,11 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
             </div>
             <div className="step-fields">
               <div className="input-with-unit">
-                <input
-                  type="number"
+                <NumberField
                   className="input-field step-field"
                   value={step.startAge}
-                  min={currentAge} max={80}
-                  onChange={(e) =>
-                    updateStep(idx, { startAge: parseInt(e.target.value) || currentAge })
-                  }
+                  min={currentAge} max={80} integer
+                  onChange={(v) => updateStep(idx, { startAge: v })}
                 />
                 <span className="input-unit">歳〜</span>
               </div>
@@ -428,14 +444,11 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
                 <span className="input-unit">歳まで</span>
               </div>
               <div className="input-with-unit">
-                <input
-                  type="number"
+                <NumberField
                   className="input-field step-field"
                   value={step.monthlyAmount}
-                  min={0} step={0.5}
-                  onChange={(e) =>
-                    updateStep(idx, { monthlyAmount: parseFloat(e.target.value) || 0 })
-                  }
+                  min={0} max={1000}
+                  onChange={(v) => updateStep(idx, { monthlyAmount: v })}
                 />
                 <span className="input-unit">万円/月</span>
               </div>
@@ -487,13 +500,11 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
           <label className="input-label">FIRE目標資産</label>
           <div className="target-asset-group">
             <div className="input-with-unit">
-              <input
-                type="number"
-                className="input-field"
+              <NumberField
                 value={input.targetAsset}
                 min={0}
-                step={100}
-                onChange={(e) => update({ targetAsset: parseFloat(e.target.value) || 0 })}
+                max={10000000}
+                onChange={(v) => update({ targetAsset: v })}
               />
               <span className="input-unit">万円</span>
             </div>
