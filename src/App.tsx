@@ -29,6 +29,8 @@ const DEFAULT_INPUT: FireInput = {
   annualExpenses: 300,
   targetAsset: 7500,
   targetFireAge: 50,
+  withdrawalStartAge: 50,
+  withdrawalStartMonth: 1,
   postFireMonthlyInvestment: 0,
   postPensionMonthlyInvestment: 0,
   startWorkAge: 22,
@@ -142,6 +144,8 @@ export default function App() {
             isSingle={isSingle}
             onChange={handleChange}
             assetReachedAge={result.assetReachedAge}
+            fireAge={result.fireAge}
+            actualWithdrawalStartAge={result.withdrawalStartAge}
           />
           <HensachiCard
             savingsMan={totalSavings}

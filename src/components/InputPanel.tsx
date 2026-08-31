@@ -5,6 +5,7 @@ import {
   FireInput,
   SpotContribution,
   resolveCurrentAge,
+  resolveWithdrawalStart,
   calcPensionAdjustmentRate,
   PENSION_MIN_AGE,
   PENSION_MAX_AGE,
@@ -16,6 +17,8 @@ interface Props {
   isSingle: boolean;
   onChange: (input: FireInput, isSingle: boolean) => void;
   assetReachedAge?: number | null;
+  fireAge?: number | null;
+  actualWithdrawalStartAge?: number | null;
 }
 
 function clamp(v: number, min?: number, max?: number): number {
@@ -137,7 +140,9 @@ function pensionAdjustLabel(age: number): { text: string; color: string } {
   return { text: '基準（100%）', color: '#8892a8' };
 }
 
-export default function InputPanel({ input, isSingle, onChange, assetReachedAge }: Props) {
+export default function InputPanel({
+  input, isSingle, onChange, assetReachedAge, fireAge = null, actualWithdrawalStartAge = null,
+}: Props) {
   const update = (partial: Partial<FireInput>, newIsSingle?: boolean) => {
     onChange({ ...input, ...partial }, newIsSingle ?? isSingle);
   };
@@ -209,6 +214,12 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
 
   // 4%ルール推奨目標資産
   const recommended4pct = Math.round(input.annualExpenses / 0.04);
+
+  // 取り崩し開始が実際に何年何月になるか
+  const wdStart = resolveWithdrawalStart(input);
+  const isClamped =
+    fireAge !== null && actualWithdrawalStartAge !== null && actualWithdrawalStartAge <= fireAge
+    && input.withdrawalStartAge < fireAge;
 
   return (
     <div className="input-panel">
@@ -475,11 +486,53 @@ export default function InputPanel({ input, isSingle, onChange, assetReachedAge 
         />
 
         <NumInput
-          label="FIRE開始希望年齢"
+          label="積立を停止する年齢"
           value={input.targetFireAge}
           onChange={(v) => update({ targetFireAge: v })}
           min={currentAge} max={75} unit="歳"
         />
+
+        {/* 取り崩し開始（年齢＋月）。積立停止より前は指定できない */}
+        <div className="input-row">
+          <label className="input-label">取り崩し開始</label>
+          <div className="input-with-unit">
+            <NumberField
+              className="input-field step-field"
+              value={input.withdrawalStartAge}
+              min={currentAge} max={90} integer
+              onChange={(v) => update({ withdrawalStartAge: v })}
+            />
+            <span className="input-unit">歳</span>
+            <NumberField
+              className="input-field step-field"
+              value={input.withdrawalStartMonth}
+              min={1} max={12} integer
+              onChange={(v) => update({ withdrawalStartMonth: v })}
+            />
+            <span className="input-unit">ヶ月目</span>
+          </div>
+        </div>
+
+        <p className="withdrawal-hint">
+          {isClamped ? (
+            <>
+              積立停止（{fireAge}歳）より前は指定できないため、
+              <strong>{fireAge}歳</strong>から取り崩しを開始します。
+            </>
+          ) : actualWithdrawalStartAge !== null && fireAge !== null && actualWithdrawalStartAge > fireAge ? (
+            <>
+              <strong>{actualWithdrawalStartAge}歳{input.withdrawalStartMonth}ヶ月目</strong>
+              （{wdStart.calendarYear}年{wdStart.calendarMonth}月ごろ）から取り崩しを開始します。
+              {fireAge}歳の積立停止から{actualWithdrawalStartAge - fireAge}年間は、
+              積立も取り崩しもせず運用のみで増えます。
+            </>
+          ) : (
+            <>
+              積立停止と同時に取り崩しを開始します。
+              開始年齢を後ろにずらすと、その間は運用のみの期間になります。
+            </>
+          )}
+        </p>
 
         {/* FIRE開始希望年齢時点で目標資産未達の場合の警告 */}
         {assetReachedAge !== undefined && assetReachedAge !== null && assetReachedAge > input.targetFireAge && (

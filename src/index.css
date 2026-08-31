@@ -1185,3 +1185,13 @@ button { font-family: inherit; }
   color: var(--amber);
   line-height: 1.5;
 }
+
+.withdrawal-hint {
+  font-size: 0.74rem;
+  color: var(--muted);
+  line-height: 1.7;
+  padding: 8px 10px;
+  background: rgba(99, 102, 241, 0.07);
+  border-radius: var(--radius-sm);
+}
+.withdrawal-hint strong { color: var(--indigo-soft); font-weight: 700; }

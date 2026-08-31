@@ -85,7 +85,7 @@ function CustomTooltip({
 }
 
 export default function FireChart({ result }: Props) {
-  const { snapshots, fireAge, targetAsset, assetLifeAge } = result;
+  const { snapshots, fireAge, targetAsset, assetLifeAge, withdrawalStartAge } = result;
 
   if (snapshots.length === 0) return null;
 
@@ -219,6 +219,24 @@ export default function FireChart({ result }: Props) {
               下段(offset=5): DC・iDeCo解禁
               中段(offset=26): FIRE
               上段(offset=47): 年金開始 */}
+
+          {/* 取り崩し開始ライン（FIREと別年のときのみ・中段） */}
+          {withdrawalStartAge !== null && fireAge !== null && withdrawalStartAge > fireAge && (
+            <ReferenceLine
+              x={withdrawalStartAge}
+              stroke="#fb7185"
+              strokeDasharray="5 3"
+              strokeWidth={1.5}
+            >
+              <Label
+                value="💸 取り崩し開始"
+                position="top"
+                offset={26}
+                fill="#fb7185"
+                fontSize={11}
+              />
+            </ReferenceLine>
+          )}
 
           {/* DC・iDeCo解禁ライン（下段） */}
           {fireAge !== null && DC_AVAILABLE_AGE > fireAge && DC_AVAILABLE_AGE <= lastAge && (

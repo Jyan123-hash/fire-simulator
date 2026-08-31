@@ -24,7 +24,9 @@ export interface FireInput {
   steps: AccumulationStep[];
   annualExpenses: number;           // 年間生活費（万円）固定
   targetAsset: number;              // FIRE目標資産額（万円）手動入力
-  targetFireAge: number;            // FIRE開始希望年齢（手動入力）
+  targetFireAge: number;            // 積立を停止する年齢（FIRE年齢）
+  withdrawalStartAge: number;       // 取り崩し開始年齢
+  withdrawalStartMonth: number;     // 取り崩し開始月（1-12）
   postFireMonthlyInvestment: number;     // FIRE後〜年金受給前の毎月積立（万円）
   postPensionMonthlyInvestment: number;  // 年金受給後の毎月積立（万円）
   startWorkAge: number;             // 就労開始年齢
@@ -59,14 +61,15 @@ export interface YearlySnapshot {
   idecoPrincipal: number;
   idecoGains: number;
   accumulatedPart: number;
-  isFire: boolean;
-  isWithdrawal: boolean;
+  isFire: boolean;        // 積立停止済み（FIRE後）
+  isWithdrawal: boolean;  // 取り崩しが始まっている
 }
 
 export interface FireResult {
   fireAge: number | null;          // 実際のFIRE開始年齢 = max(assetReachedAge, targetFireAge)
   fireAsset: number | null;        // FIRE開始時点の資産
   assetReachedAge: number | null;  // 目標資産に到達する年齢（targetFireAge無視）
+  withdrawalStartAge: number | null; // 実際に取り崩しが始まる年齢
   assetLifeAge: number | null;
   targetAsset: number;
   withdrawalRate: number;          // 自動計算 annualExpenses / targetAsset * 100
@@ -103,6 +106,35 @@ export function calcAgeFromBirthDate(birthDate: string, today: Date = new Date()
 export function resolveCurrentAge(input: FireInput, today: Date = new Date()): number {
   const fromBirth = input.birthDate ? calcAgeFromBirthDate(input.birthDate, today) : null;
   return fromBirth ?? input.currentAge;
+}
+
+// ── 取り崩し開始タイミングの解決 ──────────────────────────────────
+// 「N歳のMヶ月目から」を、シミュレーション開始（今月＝index 0）からの経過月に変換する。
+// シミュレーションの年齢は今日を起点に12ヶ月刻みで進むため、暦月ではなく
+// 「その年齢に入ってから何ヶ月目か」で指定する。暦年月は目安として併記する。
+export interface WithdrawalStart {
+  offset: number;        // シミュレーション開始からの経過月
+  calendarYear: number;  // 解決された暦年
+  calendarMonth: number; // 解決された月（1-12）
+}
+
+export function resolveWithdrawalStart(
+  input: FireInput,
+  today: Date = new Date()
+): WithdrawalStart {
+  const currentAge = resolveCurrentAge(input, today);
+  const nowYear    = today.getFullYear();
+  const nowMonth   = today.getMonth() + 1;
+
+  // 1 = その年齢になった月、12 = その年齢の最後の月
+  const month  = Math.min(12, Math.max(1, input.withdrawalStartMonth || 1));
+  const offset = (input.withdrawalStartAge - currentAge) * 12 + (month - 1);
+  const abs = nowYear * 12 + (nowMonth - 1) + offset;
+  return {
+    offset,
+    calendarYear: Math.floor(abs / 12),
+    calendarMonth: (abs % 12) + 1,
+  };
 }
 
 export function calcPensionAdjustmentRate(pensionStartAge: number): number {
@@ -156,6 +188,9 @@ function calcPensionInternal(
 // 設計方針:
 //   積立フェーズ: 現在〜FIRE達成まで。投資・DC・iDeCoを複利積立。現金は固定。
 //   FIRE判定: 投資 + 現金 + DC + iDeCo の合計が targetAsset に到達した年齢。
+//
+//   移行フェーズ: 積立停止（FIRE）〜取り崩し開始まで。積立も取り崩しもせず運用のみ。
+//     （postFireMonthlyInvestment を入れればセミリタイア中の収入も表現できる）
 //
 //   取り崩しフェーズ:
 //     流動資産 = 投資 + 現金（60歳未満）/ 投資 + 現金 + DC + iDeCo（60歳以降）
@@ -251,6 +286,12 @@ export function calcFire(input: FireInput): FireResult {
     assetReachedAge !== null ? Math.max(assetReachedAge, targetFireAge) : null;
   let fireAsset: number | null = null;
 
+  // ── 取り崩し開始タイミング ────────────────────────────────────────
+  // 「N歳のM月から」をシミュレーション開始からの経過月に変換する。
+  // 積立停止（FIRE）より前には取り崩さないため、FIRE時点を下限としてクランプする。
+  const fireStartOffset = fireAge !== null ? (fireAge - currentAge) * 12 : Infinity;
+  const wdStartOffset = Math.max(fireStartOffset, resolveWithdrawalStart(input, now).offset, 0);
+
   // ── 年金計算（fireAge確定後） ─────────────────────────────────────
   const effectiveFireAge = fireAge ?? simEndAge;
   const pension = calcPensionInternal(
@@ -273,6 +314,7 @@ export function calcFire(input: FireInput): FireResult {
   let ideco        = idecoCurrentAmount;
   let idecoPrincipal = idecoCurrentAmount;
   let inWithdrawal = false;
+  let actualWithdrawalStartAge: number | null = null;
 
   for (let yr = currentAge; yr < simEndAge; yr++) {
     if (!inWithdrawal) {
@@ -310,7 +352,8 @@ export function calcFire(input: FireInput): FireResult {
         isFire: inWithdrawal, isWithdrawal: inWithdrawal,
       });
     } else {
-      // ── 取り崩しフェーズ ──
+      // ── FIRE後（移行フェーズ + 取り崩しフェーズ）──
+      // 取り崩しは wdStartOffset 月目から始まる。それ以前は積立も取り崩しもせず運用のみ。
       const ageAtEnd = yr + 1;
       const pensionActive  = ageAtEnd >= pension.pensionStartAge;
       const dcUnlocked     = ageAtEnd >= DC_AVAILABLE_AGE;
@@ -319,11 +362,22 @@ export function calcFire(input: FireInput): FireResult {
         ? postPensionMonthlyInvestment
         : postFireMonthlyInvestment;
 
-      const monthlyWithdrawal = pensionActive
+      const baseWithdrawal = pensionActive
         ? Math.max(0, annualExpenses / 12 - pension.monthlyPension)
         : annualExpenses / 12;
 
+      let withdrewThisYear = false;
+
       for (let m = 0; m < 12; m++) {
+        const monthIdx  = (yr - currentAge) * 12 + m;
+        const withdrawing = monthIdx >= wdStartOffset;
+        const monthlyWithdrawal = withdrawing ? baseWithdrawal : 0;
+        if (withdrawing) {
+          withdrewThisYear = true;
+          // シミュレーション年 yr は「yr歳〜yr+1歳」を表すので、開始年齢は yr
+          if (actualWithdrawalStartAge === null) actualWithdrawalStartAge = yr;
+        }
+
         const spot = spotAt(yr, m);
         inv          += monthlyContrib + spot;
         invPrincipal += monthlyContrib + spot;
@@ -359,6 +413,7 @@ export function calcFire(input: FireInput): FireResult {
       const total = inv + cash + dc + ideco;
       if (total <= 0 && assetLifeAge === null) assetLifeAge = yr + 1;
 
+
       snapshots.push({
         age: yr + 1,
         totalAsset:     Math.max(0, total),
@@ -373,7 +428,7 @@ export function calcFire(input: FireInput): FireResult {
         idecoPrincipal:      Math.max(0, idecoPrincipal),
         idecoGains:          Math.max(0, ideco - idecoPrincipal),
         accumulatedPart: 0,
-        isFire: true, isWithdrawal: true,
+        isFire: true, isWithdrawal: withdrewThisYear,
       });
     }
   }
@@ -381,7 +436,9 @@ export function calcFire(input: FireInput): FireResult {
   const withdrawalRate = targetAsset > 0 ? (annualExpenses / targetAsset) * 100 : 0;
 
   return {
-    fireAge, fireAsset, assetReachedAge, assetLifeAge,
+    fireAge, fireAsset, assetReachedAge,
+    withdrawalStartAge: actualWithdrawalStartAge,
+    assetLifeAge,
     targetAsset, withdrawalRate, snapshots, pension,
   };
 }
@@ -410,7 +467,7 @@ export function formatAssetShort(man: number): string {
 }
 
 // ── 年ごとの運用益（複利で増えた額）内訳 ────────────────────────────
-export type GainPhase = 'accumulation' | 'withdrawal' | 'pension';
+export type GainPhase = 'accumulation' | 'transition' | 'withdrawal' | 'pension';
 
 export interface YearlyGain {
   age: number;
@@ -447,8 +504,11 @@ export function calcYearlyGains(result: FireResult): GainsSummary {
     const principal =
       s.investmentPrincipal + s.cashPart + s.dcPrincipal + s.idecoPrincipal;
 
-    const phase: GainPhase = !s.isWithdrawal
+    // 積立中 → 積立停止後で取り崩し前 → 取り崩し中 → 年金受給後
+    const phase: GainPhase = !s.isFire
       ? 'accumulation'
+      : !s.isWithdrawal
+      ? 'transition'
       : s.age >= pension.pensionStartAge
       ? 'pension'
       : 'withdrawal';

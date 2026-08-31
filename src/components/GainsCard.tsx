@@ -12,6 +12,7 @@ interface Props {
 
 const PHASE_LABEL: Record<GainPhase, string> = {
   accumulation: '積立',
+  transition: '待機',
   withdrawal: '取崩',
   pension: '年金',
 };
