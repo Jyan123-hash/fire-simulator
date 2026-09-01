@@ -488,7 +488,8 @@ export default function InputPanel({
         <NumInput
           label="積立を停止する年齢"
           value={input.targetFireAge}
-          onChange={(v) => update({ targetFireAge: v })}
+          // 停止年齢を変えたら取り崩し開始もその年齢の先頭に揃える
+          onChange={(v) => update({ targetFireAge: v, withdrawalStartAge: v, withdrawalStartMonth: 1 })}
           min={currentAge} max={75} unit="歳"
         />
 
